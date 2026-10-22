@@ -52,16 +52,16 @@ terminate_pids() {
     }' "$@" >/dev/null
 }
 
-# Print the pids of CropCast instances running from the bundle $1. Paths are
-# compared after resolving symlinks in the shell (Foundation maps /private/tmp
-# to /tmp, so it cannot be trusted for this).
+# Print the pids of CropCast instances running from the bundle $1, given the
+# list_instances output $2. Paths are compared after resolving symlinks in the
+# shell (Foundation maps /private/tmp to /tmp, so it cannot be trusted for this).
 matching_pids() {
   local pid path real
   while IFS=$'\t' read -r pid path; do
     [[ -n "$pid" && -d "$path" ]] || continue
     real="$(cd "$path" && pwd -P)"
     [[ "$real" == "$1" ]] && printf '%s ' "$pid"
-  done < <(list_instances)
+  done <<<"$2"
   return 0
 }
 
@@ -85,21 +85,18 @@ wait_gone() { # wait_gone <seconds> <pid>...: poll every 0.2 s
 }
 
 quit_running() { # quit_running <bundle path>
-  local pids
-  pids="$(matching_pids "$1")"
-  pids="${pids% }"
-  [[ -n "$pids" ]] || return 0
-  echo "Quitting running CropCast ($pids) from $1"
-  # shellcheck disable=SC2086  # pids is a space-separated list
-  terminate_pids $pids
-  # shellcheck disable=SC2086
-  if wait_gone 5 $pids; then return 0; fi
-  echo "Still running; sending SIGTERM to $pids"
-  # shellcheck disable=SC2086
-  kill -TERM $pids 2>/dev/null || true
-  # shellcheck disable=SC2086
-  if wait_gone 2 $pids; then return 0; fi
-  die "CropCast ($pids) is still running from $1; quit it and re-run. Nothing was changed."
+  local out pids
+  # Fail closed: a listing failure must not read as "not running".
+  out="$(list_instances)" || die "could not list running CropCast instances; nothing was changed"
+  read -ra pids <<<"$(matching_pids "$1" "$out")"
+  ((${#pids[@]} > 0)) || return 0
+  echo "Quitting running CropCast (${pids[*]}) from $1"
+  terminate_pids "${pids[@]}"
+  if wait_gone 5 "${pids[@]}"; then return 0; fi
+  echo "Still running; sending SIGTERM to ${pids[*]}"
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  if wait_gone 2 "${pids[@]}"; then return 0; fi
+  die "CropCast (${pids[*]}) is still running from $1; quit it and re-run. Nothing was changed."
 }
 
 preflight_dir() { # preflight_dir <dir>: dir exists and is writable
@@ -121,17 +118,22 @@ assert_dest() {
 do_install() {
   preflight_dir "$DIR"
   [[ -d "$SRC" ]] || die "$SRC not found; run 'make app' first (or use 'make install')."
-  # Non-strict on the source: a synced folder (iCloud Desktop, Dropbox) adds
-  # Finder xattrs to build/ after signing, which only --strict rejects. The
-  # copy below drops xattrs, and the installed bundle is verified strictly.
-  codesign --verify "$SRC" || die "$SRC failed codesign verification; run 'make app' again."
   preflight_dest
+
+  # Stage a clean copy and verify it strictly before touching anything. A synced
+  # folder (iCloud Desktop, Dropbox) adds Finder xattrs to build/ after signing,
+  # which only --strict rejects; the copy drops them. A bad bundle therefore
+  # aborts here, while the old install and any running instance are untouched.
+  STAGE="$(mktemp -d "${TMPDIR:-/tmp}/cropcast-stage.XXXXXX")"
+  trap 'rm -rf "$STAGE"' EXIT
+  ditto --norsrc --noextattr "$SRC" "$STAGE/CropCast.app"
+  codesign --verify --strict "$STAGE/CropCast.app" || die "$SRC failed codesign verification; run 'make app' again."
 
   quit_running "$DEST"
 
   assert_dest
   rm -rf "$DEST"
-  ditto --norsrc --noextattr "$SRC" "$DEST"
+  ditto --norsrc --noextattr "$STAGE/CropCast.app" "$DEST"
   codesign --verify --strict "$DEST" || die "$DEST failed codesign verification after the copy."
   echo "Installed $DEST"
 
