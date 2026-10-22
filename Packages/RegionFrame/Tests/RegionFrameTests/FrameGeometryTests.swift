@@ -372,7 +372,7 @@ let edgeHandles: [FrameHandle] = [.top, .right, .bottom, .left]
         let display = TestDisplays.main
         let start = CGRect(x: 1500, y: 0, width: 640, height: 360)
         let result = FrameGeometry.resize(start, handle: .topRight, by: CGVector(dx: 10, dy: 10), in: display)
-        #expect(result.width >= 640 && result.height >= 360, "\(result)")
+        #expect(result == CGRect(x: 1160, y: 0, width: 640, height: 360))
         expectValid(result, in: display)
     }
 
