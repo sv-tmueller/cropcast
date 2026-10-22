@@ -115,7 +115,6 @@ struct RegionMirrorDemo {
             titledWindow = window
             renderer = view
         }
-        _ = (mirrorWindow, titledWindow)
 
         let positions = regionPositions(in: sourceFrame)
         let capture = RegionCapture(sourceDisplayID: options.source)

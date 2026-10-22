@@ -9,7 +9,9 @@ public final class MirrorWindow {
     public let view: MirrorView
     private let window: NSWindow
 
-    /// Window number, usable with ``RegionCapture/excludeWindows(_:)``.
+    /// The `NSWindow` window number. All windows of this app are already
+    /// excluded from capture, so there is no need to pass it to
+    /// ``RegionCapture/excludeWindows(_:)``, which takes `CGWindowID`s.
     public var windowNumber: Int { window.windowNumber }
 
     /// Creates a window covering the `NSScreen` of `targetDisplayID`.
