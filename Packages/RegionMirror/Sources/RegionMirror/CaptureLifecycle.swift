@@ -72,6 +72,26 @@ struct CaptureLifecycle<Stream> {
         return false
     }
 
+    /// True while `token`'s start has not resolved, whether or not its stream
+    /// ended. False once ``stop()``, ``startFailed(_:)`` or ``commit(_:stream:)``
+    /// resolved it, and for a stale token. After a failed await a start asks
+    /// this to tell "stop() cancelled me" (false) from "I still own the
+    /// lifecycle" (true).
+    func isStarting(_ token: CaptureToken) -> Bool {
+        if case .starting(let current, _) = phase { return current == token }
+        return false
+    }
+
+    /// True when a region update can matter: a live start (stream not ended) or
+    /// a running capture. False when idle or when the start's stream ended, so
+    /// callers can answer `.notRunning` before doing any other work.
+    var acceptsRegionUpdates: Bool {
+        switch phase {
+        case .idle, .starting(_, .some): return false
+        case .starting(_, .none), .running: return true
+        }
+    }
+
     /// Routes a region update by phase. While starting, stores `sourceRect`
     /// (latest wins) for ``takePendingRegion(_:)``. A start whose stream already
     /// ended is `.notRunning` and stores nothing: that start only throws.

@@ -293,6 +293,86 @@ struct CaptureLifecycleTests {
         #expect(taken1 == nil)
     }
 
+    @Test("the first ended error wins when the same start's stream ends twice")
+    func firstEndedErrorWins() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        let second = RegionMirrorError.permissionDenied
+        let reported1 = lifecycle.streamEnded(t1, error: failure)
+        let reported2 = lifecycle.streamEnded(t1, error: second)
+        #expect(!reported1)
+        #expect(!reported2)
+        #expect(lifecycle.endedError(for: t1) == failure)
+    }
+
+    // MARK: isStarting
+
+    @Test("isStarting is true while the start is in flight")
+    func isStartingWhileStarting() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        #expect(lifecycle.isStarting(t1))
+    }
+
+    @Test("isStarting stays true when the start's stream already ended")
+    func isStartingWhileStartingButEnded() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        _ = lifecycle.streamEnded(t1, error: failure)
+        #expect(lifecycle.isStarting(t1))
+    }
+
+    @Test("isStarting is false after stop, also when the stream had ended")
+    func isStartingAfterStop() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        _ = lifecycle.stop()
+        #expect(!lifecycle.isStarting(t1))
+        let t2 = lifecycle.beginStart()!
+        _ = lifecycle.streamEnded(t2, error: failure)
+        _ = lifecycle.stop()
+        #expect(!lifecycle.isStarting(t2))
+    }
+
+    @Test("isStarting is false after startFailed and after commit")
+    func isStartingAfterResolved() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        lifecycle.startFailed(t1)
+        #expect(!lifecycle.isStarting(t1))
+        let t2 = lifecycle.beginStart()!
+        _ = lifecycle.commit(t2, stream: "s1")
+        #expect(!lifecycle.isStarting(t2))
+    }
+
+    @Test("isStarting is false for a stale token while a newer start is in flight")
+    func isStartingStaleToken() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        _ = lifecycle.stop()
+        let t2 = lifecycle.beginStart()!
+        #expect(!lifecycle.isStarting(t1))
+        #expect(lifecycle.isStarting(t2))
+    }
+
+    // MARK: acceptsRegionUpdates
+
+    @Test("only a live capture accepts region updates: starting or running, not idle or ended")
+    func acceptsRegionUpdatesPerPhase() {
+        var lifecycle = Lifecycle()
+        #expect(!lifecycle.acceptsRegionUpdates)
+        let t1 = lifecycle.beginStart()!
+        #expect(lifecycle.acceptsRegionUpdates)
+        _ = lifecycle.streamEnded(t1, error: failure)
+        #expect(!lifecycle.acceptsRegionUpdates)
+        lifecycle.startFailed(t1)
+        let t2 = lifecycle.beginStart()!
+        _ = lifecycle.commit(t2, stream: "s1")
+        #expect(lifecycle.acceptsRegionUpdates)
+        _ = lifecycle.stop()
+        #expect(!lifecycle.acceptsRegionUpdates)
+    }
+
     @Test("stop while running returns the stream once, the second stop returns nil")
     func stopReturnsStreamOnce() {
         var lifecycle = running("s1")

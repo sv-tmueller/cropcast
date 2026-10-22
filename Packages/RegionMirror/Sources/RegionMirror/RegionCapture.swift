@@ -52,10 +52,11 @@ public final class RegionCapture {
     /// is in flight are applied before it returns.
     /// - Throws: only ``RegionMirrorError``: ``RegionMirrorError/alreadyRunning``
     ///   when a capture is starting or running. ``RegionMirrorError/notRunning``
-    ///   means only that ``stop()`` cancelled this start. A stream that ends by
-    ///   itself while this is in flight throws the error it ended with (for
-    ///   example ``RegionMirrorError/captureFailed(code:description:)``), never
-    ///   `.notRunning`.
+    ///   means exactly that ``stop()`` was called before this start resolved;
+    ///   it wins over any failure. Otherwise a stream that ends by itself while
+    ///   this is in flight throws the error it ended with (for example
+    ///   ``RegionMirrorError/captureFailed(code:description:)``), which beats
+    ///   the mapped error of whichever call failed.
     public func start(region: CGRect, renderer: AVSampleBufferVideoRenderer) async throws {
         guard CGPreflightScreenCaptureAccess() else { throw RegionMirrorError.permissionDenied }
         guard let token = lifecycle.beginStart() else { throw RegionMirrorError.alreadyRunning }
@@ -107,15 +108,16 @@ public final class RegionCapture {
                 throw RegionMirrorError.notRunning
             }
         } catch {
-            // An ended start keeps the lifecycle (starting, marked ended) until
-            // startFailed below, so no new start can run meanwhile. Read before
-            // the teardown await, because a stop() during it clears the record
-            // and that cancellation must win.
-            let endedError = lifecycle.endedError(for: token)
+            // Precedence: a stop() at any point before this start resolves wins
+            // and throws `.notRunning`, even if an await also failed. Otherwise
+            // the stream's own ended error beats the mapped error. An ended start
+            // keeps the lifecycle (starting, marked ended) until startFailed
+            // below, so no new start can run meanwhile. Ask after the teardown
+            // await, because stop() can run during it.
             if let created { await tearDown(created) }
+            guard lifecycle.isStarting(token) else { throw RegionMirrorError.notRunning }
+            let endedError = lifecycle.endedError(for: token)
             lifecycle.startFailed(token)
-            // The stream dying is the root cause; any later error (including
-            // the `.notRunning` of a failed token check) is a consequence.
             throw endedError ?? RegionMirrorError(captureError: error)
         }
     }
@@ -128,7 +130,7 @@ public final class RegionCapture {
     /// - Throws: ``RegionMirrorError/notRunning``, ``RegionMirrorError/regionOutsideDisplay``
     ///   or a mapped capture error.
     public func updateRegion(_ region: CGRect) async throws {
-        if case .idle = lifecycle.phase { throw RegionMirrorError.notRunning }
+        guard lifecycle.acceptsRegionUpdates else { throw RegionMirrorError.notRunning }
         let sourceRect = try sourceRect(for: region)
         switch lifecycle.regionUpdate(sourceRect) {
         case .notRunning:
