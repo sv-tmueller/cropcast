@@ -38,7 +38,8 @@ struct CaptureLifecycle<Stream> {
     enum Phase {
         case idle
         /// `endedError` is non-nil once the start's stream ended by itself; the
-        /// start is then no longer current and only waits to throw that error.
+        /// start is then no longer current and only waits to throw that error
+        /// (unless ``stop()`` is called first).
         case starting(CaptureToken, endedError: RegionMirrorError?)
         case running(CaptureToken, Stream)
     }
@@ -96,16 +97,10 @@ struct CaptureLifecycle<Stream> {
     /// (latest wins) for ``takePendingRegion(_:)``. A start whose stream already
     /// ended is `.notRunning` and stores nothing: that start only throws.
     mutating func regionUpdate(_ sourceRect: CGRect) -> RegionUpdateDecision<Stream> {
-        switch phase {
-        case .idle:
-            return .notRunning
-        case .starting(_, let endedError):
-            if endedError != nil { return .notRunning }
-            pendingSourceRect = sourceRect
-            return .deferred
-        case .running(_, let stream):
-            return .apply(stream)
-        }
+        guard acceptsRegionUpdates else { return .notRunning }
+        if case .running(_, let stream) = phase { return .apply(stream) }
+        pendingSourceRect = sourceRect
+        return .deferred
     }
 
     /// One-shot: the stored region of `token`'s start, nil for a stale token
@@ -128,7 +123,7 @@ struct CaptureLifecycle<Stream> {
     /// Goes idle if `token`'s start is still unresolved, ended or not (this
     /// releases an ended start); otherwise no change.
     mutating func startFailed(_ token: CaptureToken) {
-        guard case .starting(let current, _) = phase, current == token else { return }
+        guard isStarting(token) else { return }
         pendingSourceRect = nil
         phase = .idle
     }
@@ -147,9 +142,9 @@ struct CaptureLifecycle<Stream> {
 
     /// The error that ended `token`'s start by itself. Readable until that
     /// start resolves (``startFailed(_:)``) or ``stop()`` cancels it; nil
-    /// afterwards. Once `token` is no longer current, a start reads this to
-    /// tell "the stream died" (throw the error) from "stop() cancelled me"
-    /// (throw `.notRunning`).
+    /// afterwards. Once ``isStarting(_:)`` is true for `token`, this tells an
+    /// ended stream (throw its error) apart from a failed call (throw the
+    /// mapped error).
     func endedError(for token: CaptureToken) -> RegionMirrorError? {
         if case .starting(let current, let error?) = phase, current == token { return error }
         return nil

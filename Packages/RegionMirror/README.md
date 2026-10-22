@@ -18,13 +18,13 @@ packages.
   (`exceptingWindows`). Listing own windows one by one is only a fallback when
   the app is missing from the shareable content.
   Lifecycle: start and stop are serialized (pure `CaptureLifecycle`, unit
-  tested). `start` on a starting or running capture throws `.alreadyRunning`
-  (it never restarts). `stop()` during a start cancels it: the start stops its
-  own stream and throws `.notRunning`. `.notRunning` from `start()` means
-  exactly that `stop()` was called before the start resolved (it wins even if
-  an await also failed); otherwise a stream that ended during the start throws
-  its own error. `updateRegion` and `excludeWindows`
-  during a start are stored and applied before `start` returns.
+  tested). `start` on a starting or running capture throws `.alreadyRunning` (it
+  never restarts). `stop()` during a start cancels it: the start stops its own
+  stream and throws `.notRunning`. `.notRunning` from `start()` means exactly
+  that `stop()` was called before the start resolved (it wins even if an await
+  also failed); otherwise a stream that ended during the start throws its own
+  error. `updateRegion` and `excludeWindows` during a start are stored and
+  applied before `start` returns.
 - `MirrorView` / `MirrorWindow`: `AVSampleBufferDisplayLayer`-backed view and a
   borderless full-screen window on a target display.
 - `RegionMirrorError`: the only error type thrown. `-3801` maps to

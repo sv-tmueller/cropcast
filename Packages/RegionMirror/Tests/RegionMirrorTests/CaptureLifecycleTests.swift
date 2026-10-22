@@ -190,20 +190,22 @@ struct CaptureLifecycleTests {
         #expect(lifecycle.endedError(for: t1) == failure)
     }
 
-    @Test("stop while starting records no error, so the start reads as cancelled")
+    @Test("stop while starting clears the start record and records no error")
     func stopWhileStartingRecordsNothing() {
         var lifecycle = Lifecycle()
         let t1 = lifecycle.beginStart()!
         _ = lifecycle.stop()
+        #expect(!lifecycle.isStarting(t1))
         #expect(lifecycle.endedError(for: t1) == nil)
     }
 
-    @Test("stop after the stream ended during start wins: the start reads as cancelled")
+    @Test("stop after the stream ended during start clears the start record and the error")
     func stopAfterEndedWhileStarting() {
         var lifecycle = Lifecycle()
         let t1 = lifecycle.beginStart()!
         _ = lifecycle.streamEnded(t1, error: failure)
         _ = lifecycle.stop()
+        #expect(!lifecycle.isStarting(t1))
         #expect(lifecycle.endedError(for: t1) == nil)
     }
 

@@ -17,9 +17,9 @@ import ScreenCaptureKit
 /// ``RegionMirrorError/alreadyRunning`` (it never restarts); `stop()` during a
 /// start cancels that start, which stops its own stream and throws
 /// ``RegionMirrorError/notRunning``. A stream that ends by itself during a
-/// start makes that start throw the stream's error instead; that start keeps
-/// the lifecycle until it has torn down, so a `start` in between throws
-/// ``RegionMirrorError/alreadyRunning``.
+/// start makes that start throw the stream's error instead (unless `stop()`
+/// is called first); that start keeps the lifecycle until it has torn down, so
+/// a `start` in between throws ``RegionMirrorError/alreadyRunning``.
 ///
 /// The class never requests Screen Recording permission; it only checks it.
 @MainActor
