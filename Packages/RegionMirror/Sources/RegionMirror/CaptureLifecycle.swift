@@ -38,6 +38,8 @@ struct CaptureLifecycle<Stream> {
     private(set) var phase: Phase = .idle
     private var pendingSourceRect: CGRect?
     private var lastToken: UInt64 = 0
+    /// Why a start ended by itself, keyed by that start's token.
+    private var endedDuringStart: (token: CaptureToken, error: RegionMirrorError)?
 
     /// The stream while running, otherwise nil.
     var runningStream: Stream? {
@@ -52,6 +54,7 @@ struct CaptureLifecycle<Stream> {
         lastToken += 1
         let token = CaptureToken(value: lastToken)
         pendingSourceRect = nil
+        endedDuringStart = nil
         phase = .starting(token)
         return token
     }
@@ -102,24 +105,37 @@ struct CaptureLifecycle<Stream> {
 
     /// Always ends idle with nothing pending. Returns the stream to tear down
     /// when one was running; a starting capture is cancelled (its own
-    /// `start()` stops the stream it created).
+    /// `start()` stops the stream it created). A cancellation wins over an
+    /// error recorded by ``streamEnded(_:error:)``.
     mutating func stop() -> Stream? {
         let stream = runningStream
         pendingSourceRect = nil
+        endedDuringStart = nil
         phase = .idle
         return stream
     }
 
-    /// The stream of `token` ended by itself. Returns true only when it was the
-    /// running stream (the caller reports `onStop`). A start in flight is
-    /// cancelled without a report; any other token changes nothing.
-    mutating func streamEnded(_ token: CaptureToken) -> Bool {
+    /// The error that ended `token`'s start by itself, nil when that start was
+    /// cancelled by ``stop()`` or superseded. Once `token` is no longer current,
+    /// a start reads this to tell "the stream died" (throw the error) from
+    /// "stop() cancelled me" (throw `.notRunning`).
+    func endedError(for token: CaptureToken) -> RegionMirrorError? {
+        guard let ended = endedDuringStart, ended.token == token else { return nil }
+        return ended.error
+    }
+
+    /// The stream of `token` ended by itself with `error`. Returns true only
+    /// when it was the running stream (the caller reports `onStop`). A start in
+    /// flight goes idle without a report and keeps `error` for
+    /// ``endedError(for:)``; any other token changes nothing.
+    mutating func streamEnded(_ token: CaptureToken, error: RegionMirrorError) -> Bool {
         switch phase {
         case .running(let current, _) where current == token:
             phase = .idle
             return true
         case .starting(let current) where current == token:
             pendingSourceRect = nil
+            endedDuringStart = (token, error)
             phase = .idle
             return false
         default:

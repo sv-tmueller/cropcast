@@ -16,7 +16,8 @@ import ScreenCaptureKit
 /// stale one behind. A second `start` while starting or running throws
 /// ``RegionMirrorError/alreadyRunning`` (it never restarts); `stop()` during a
 /// start cancels that start, which stops its own stream and throws
-/// ``RegionMirrorError/notRunning``.
+/// ``RegionMirrorError/notRunning``. A stream that ends by itself during a
+/// start makes that start throw the stream's error instead.
 ///
 /// The class never requests Screen Recording permission; it only checks it.
 @MainActor
@@ -48,8 +49,11 @@ public final class RegionCapture {
     /// Calls to ``updateRegion(_:)`` and ``excludeWindows(_:)`` made while this
     /// is in flight are applied before it returns.
     /// - Throws: only ``RegionMirrorError``: ``RegionMirrorError/alreadyRunning``
-    ///   when a capture is starting or running, ``RegionMirrorError/notRunning``
-    ///   when ``stop()`` cancelled this start.
+    ///   when a capture is starting or running. ``RegionMirrorError/notRunning``
+    ///   means only that ``stop()`` cancelled this start. A stream that ends by
+    ///   itself while this is in flight throws the error it ended with (for
+    ///   example ``RegionMirrorError/captureFailed(code:description:)``), never
+    ///   `.notRunning`.
     public func start(region: CGRect, renderer: AVSampleBufferVideoRenderer) async throws {
         guard CGPreflightScreenCaptureAccess() else { throw RegionMirrorError.permissionDenied }
         guard let token = lifecycle.beginStart() else { throw RegionMirrorError.alreadyRunning }
@@ -101,9 +105,14 @@ public final class RegionCapture {
                 throw RegionMirrorError.notRunning
             }
         } catch {
+            // Read before the teardown await: once the stream ended, the phase is
+            // idle and a new start could clear the record while we suspend.
+            let endedError = lifecycle.endedError(for: token)
             if let created { await tearDown(created) }
             lifecycle.startFailed(token)
-            throw RegionMirrorError(captureError: error)
+            // The stream dying is the root cause; any later error (including
+            // the `.notRunning` of a failed token check) is a consequence.
+            throw endedError ?? RegionMirrorError(captureError: error)
         }
     }
 
@@ -160,7 +169,7 @@ public final class RegionCapture {
 
     /// Reports a stream that ended by itself, only if it is still the current one.
     private func streamStopped(_ token: CaptureToken, with error: RegionMirrorError) {
-        guard lifecycle.streamEnded(token) else { return }
+        guard lifecycle.streamEnded(token, error: error) else { return }
         onStop?(error)
     }
 
