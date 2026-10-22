@@ -44,7 +44,9 @@ One versioned blob under `RegionFrame.state.v1` in the defaults you pass:
 `{ lastDisplayKey, frames: [displayKey: rect measured from the display origin] }`.
 The display key is the display UUID (fallback `cg-<vendor>-<model>-<serial>`).
 Saved on mouse-up, on `apply(preset:)` and on `show(on:)`, never on every drag
-step. Nothing stored or undecodable data falls back to the centre preset.
+step. Nothing stored, undecodable data, or an implausible stored rect (non-finite,
+empty or not on the display) falls back to the centre preset; geometry never
+traps on NaN, infinite or out-of-range numbers.
 
 The module never hard-codes a bundle id. The demo uses its own suite and the
 tests use a unique throwaway suite each; neither touches `UserDefaults.standard`.
@@ -54,8 +56,8 @@ tests use a unique throwaway suite each; neither touches `UserDefaults.standard`
 ```sh
 swift build --package-path Packages/RegionFrame
 D=Packages/RegionFrame/.build/debug/regionframe-demo
-$D --list                                  # displays: number, id, frames
-$D --display 1 --preset right --seconds 5  # id or the number from --list
+$D --list                                  # displays: id and frames
+$D --display 1 --preset right --seconds 5  # a display id from --list (id=, not a position)
 $D --display 1 --cycle-presets --seconds 4 # left, center, right, once per second
 $D --reset --display 1 --seconds 1         # forget saved regions first
 $D                                         # run until Ctrl-C, drag by hand
@@ -73,7 +75,7 @@ defaults delete com.github.sv-tmueller.cropcast.regionframe-demo
 
 Run `regionframe-demo` (no `--seconds`) and check, on every connected display:
 
-- [ ] `--list` shows every display; `--cycle-presets` prints left/centre/right
+- [ ] `--list` shows every display with its id; `--cycle-presets` prints left/centre/right
       with `16:9=ok inside=ok` (ultrawide 5120x1440: three 2560x1440 slots).
 - [ ] Dragging the band moves the frame; it stops at all four display edges.
 - [ ] All 8 handles (4 corner brackets, 4 edge bars) resize and keep exactly
@@ -83,7 +85,7 @@ Run `regionframe-demo` (no `--seconds`) and check, on every connected display:
       (its title bar stays active).
 - [ ] The frame stays visible across app switches and Spaces and sits above the
       menu bar (place a preset that touches the top of the display).
-- [ ] After a drag by hand, Ctrl-C and relaunch with `--display <n>`: the frame
+- [ ] After a drag by hand, Ctrl-C and relaunch with `--display <id>`: the frame
       reappears at the dragged region.
 - [ ] `--reset` then relaunch: the frame is centred.
 - [ ] The four `windowNumbers` printed at startup match the border windows

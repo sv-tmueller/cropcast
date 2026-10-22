@@ -23,7 +23,7 @@ struct RegionFrameDemo {
     }
 
     static let usage = """
-        usage: regionframe-demo [--list] [--display <displayID|number>] [--preset left|center|right] \
+        usage: regionframe-demo [--list] [--display <displayID>] [--preset left|center|right] \
         [--cycle-presets] [--seconds N] [--reset]
         """
 
@@ -83,7 +83,7 @@ struct RegionFrameDemo {
         var displayID: CGDirectDisplayID?
         if let requested = options.display {
             guard let resolved = resolveDisplay(requested) else {
-                FileHandle.standardError.write(Data("no connected display with id or number \(requested); see --list\n".utf8))
+                FileHandle.standardError.write(Data("no connected display with id \(requested); see --list\n".utf8))
                 exit(1)
             }
             displayID = resolved
@@ -131,19 +131,18 @@ struct RegionFrameDemo {
         app.run()
     }
 
-    /// Accepts a `CGDirectDisplayID` or the 1-based display number printed by `--list`.
+    /// Accepts a `CGDirectDisplayID` (the `id=` printed by `--list`) only.
     static func resolveDisplay(_ value: UInt32) -> CGDirectDisplayID? {
         let ids = NSScreen.screens.compactMap {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
         }
-        if ids.contains(value) { return value }
-        return ids.indices.contains(Int(value) - 1) ? ids[Int(value) - 1] : nil
+        return ids.contains(value) ? value : nil
     }
 
     static func list() {
-        for (index, screen) in NSScreen.screens.enumerated() {
+        for screen in NSScreen.screens {
             let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
-            print("display \(index + 1): id=\(id) frame=\(format(screen.frame)) visibleFrame=\(format(screen.visibleFrame)) scale=\(screen.backingScaleFactor)")
+            print("display id=\(id) frame=\(format(screen.frame)) visibleFrame=\(format(screen.visibleFrame)) scale=\(screen.backingScaleFactor)")
         }
     }
 
