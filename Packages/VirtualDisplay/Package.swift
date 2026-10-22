@@ -19,13 +19,15 @@ let package = Package(
             name: "VirtualDisplay",
             dependencies: ["CVirtualDisplayShim"]
         ),
+        // Pure option parsing and pass/fail logic for the demo. Not a product.
+        .target(name: "VirtualDisplayDemoSupport"),
         .executableTarget(
             name: "vdisplay-demo",
-            dependencies: ["VirtualDisplay"]
+            dependencies: ["VirtualDisplay", "VirtualDisplayDemoSupport"]
         ),
         .testTarget(
             name: "VirtualDisplayTests",
-            dependencies: ["VirtualDisplay", "CVirtualDisplayShim"]),
+            dependencies: ["VirtualDisplay", "CVirtualDisplayShim", "VirtualDisplayDemoSupport"]),
     ],
     swiftLanguageModes: [.v6]
 )

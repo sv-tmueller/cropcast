@@ -1,13 +1,15 @@
 // vdisplay-demo: creates the "CropCast" virtual display, logs the active display
-// count before/during/after, and removes it. Exit 0 only if the count went
-// N -> N+1 -> N.
+// count before/during/after, and removes it. With --cycles N it does that N
+// times in one process. Exit 0 only if every cycle went N -> N+1 -> N.
 //
-// Usage: vdisplay-demo [--seconds N]   (default 10)
+// Usage: vdisplay-demo [--seconds N] [--cycles N]   (defaults: 10 s, 1 cycle)
 
+import AppKit
 import CoreGraphics
 import Dispatch
 import Foundation
 import VirtualDisplay
+import VirtualDisplayDemoSupport
 
 func log(_ message: String) {
     print("[vdisplay-demo] \(message)")
@@ -15,20 +17,9 @@ func log(_ message: String) {
 }
 
 func usage() -> Never {
-    FileHandle.standardError.write(Data("usage: vdisplay-demo [--seconds N]   (N is a positive integer)\n".utf8))
+    FileHandle.standardError.write(
+        Data("usage: vdisplay-demo [--seconds N] [--cycles N]   (N is a positive integer)\n".utf8))
     exit(2)
-}
-
-func parseSeconds(_ args: [String]) -> Int {
-    switch args.count {
-    case 0:
-        return 10
-    case 2 where args[0] == "--seconds":
-        guard let n = Int(args[1]), n > 0 else { usage() }
-        return n
-    default:
-        usage()
-    }
 }
 
 func describe(_ rect: CGRect) -> String {
@@ -46,17 +37,66 @@ func describeMode(of displayID: CGDirectDisplayID) -> String {
     return "\(mode.pixelWidth)x\(mode.pixelHeight) px @ \(mode.refreshRate) Hz"
 }
 
-let seconds = parseSeconds(Array(CommandLine.arguments.dropFirst()))
-let before = activeDisplayCount()
-log("active displays before: \(before)")
-
-let display: VirtualDisplay
-do {
-    display = try await VirtualDisplay.start()
-} catch {
-    log("failed to start virtual display: \(error)")
-    exit(1)
+/// The display of the cycle in progress, so Ctrl-C can remove it.
+enum Running {
+    @MainActor static var display: VirtualDisplay?
 }
+
+/// Runs one start/stop cycle. Returns nil if the display could not be started.
+@MainActor func runCycle(seconds: Int) async -> CycleResult? {
+    let before = activeDisplayCount()
+    log("active displays before: \(before)")
+
+    let display: VirtualDisplay
+    do {
+        display = try await VirtualDisplay.start()
+    } catch {
+        log("failed to start virtual display: \(error)")
+        return nil
+    }
+    Running.display = display
+
+    let bounds = CGDisplayBounds(display.displayID)
+    let main = CGDisplayBounds(CGMainDisplayID())
+    log("displayID: \(display.displayID)")
+    log("mode: \(describeMode(of: display.displayID)) (main display: \(describe(main)))")
+    log("requested origin: (\(Int(display.requestedOrigin.x)), \(Int(display.requestedOrigin.y)))")
+    log("actual bounds: \(describe(bounds))")
+    let during = activeDisplayCount()
+    log("active displays during: \(during)")
+    log("running for \(seconds) s (Ctrl-C to stop early)")
+
+    try? await Task.sleep(for: .seconds(seconds))
+
+    display.stop()
+    Running.display = nil
+    log("stopped, waiting for the display to go away")
+    var after = activeDisplayCount()
+    let deadline = ContinuousClock.now + .seconds(5)
+    while after != before && ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(50))
+        after = activeDisplayCount()
+    }
+    log("active displays after: \(after)")
+    return CycleResult(before: before, during: during, after: after)
+}
+
+@MainActor func runDemo(_ options: DemoOptions) async -> Int32 {
+    var failures = 0
+    for cycle in 1...options.cycles {
+        if options.cycles > 1 { log("cycle \(cycle)/\(options.cycles)") }
+        if let result = await runCycle(seconds: options.seconds), result.isOK {
+            log("OK: \(result.before) -> \(result.during) -> \(result.after)")
+        } else {
+            failures += 1
+            log("FAIL: cycle \(cycle) did not go N -> N+1 -> N")
+        }
+    }
+    if options.cycles > 1 { log("\(options.cycles - failures)/\(options.cycles) cycles passed") }
+    return failures == 0 ? 0 : 1
+}
+
+guard let options = DemoOptions.parse(Array(CommandLine.arguments.dropFirst())) else { usage() }
 
 // Ctrl-C removes the display before exiting.
 signal(SIGINT, SIG_IGN)
@@ -64,38 +104,21 @@ let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
 sigint.setEventHandler {
     MainActor.assumeIsolated {
         log("SIGINT: stopping")
-        display.stop()
+        Running.display?.stop()
         exit(130)
     }
 }
 sigint.resume()
 
-let bounds = CGDisplayBounds(display.displayID)
-let main = CGDisplayBounds(CGMainDisplayID())
-log("displayID: \(display.displayID)")
-log("mode: \(describeMode(of: display.displayID)) (main display: \(describe(main)))")
-log("requested origin: (\(Int(display.requestedOrigin.x)), \(Int(display.requestedOrigin.y)))")
-log("actual bounds: \(describe(bounds))")
-let during = activeDisplayCount()
-log("active displays during: \(during)")
-log("running for \(seconds) s (Ctrl-C to stop early)")
-
-try? await Task.sleep(for: .seconds(seconds))
-
-display.stop()
-log("stopped, waiting for the display to go away")
-var after = activeDisplayCount()
-let deadline = ContinuousClock.now + .seconds(5)
-while after != before && ContinuousClock.now < deadline {
-    try? await Task.sleep(for: .milliseconds(100))
-    after = activeDisplayCount()
+// The main thread must run the AppKit event loop, as the menu bar app does.
+// With Swift's async main (top-level `await`) or a bare CFRunLoopRun(), this
+// process's CoreGraphics display list stops updating after a display
+// reconfiguration: the display is already gone system-wide, but
+// CGGetActiveDisplayList in this process still lists it, and the next start()
+// throws .didNotComeOnline. See the package README.
+let app = NSApplication.shared
+app.setActivationPolicy(.accessory)
+Task { @MainActor in
+    exit(await runDemo(options))
 }
-log("active displays after: \(after)")
-
-if during == before + 1 && after == before {
-    log("OK: \(before) -> \(during) -> \(after)")
-    exit(0)
-} else {
-    log("FAIL: expected \(before) -> \(before + 1) -> \(before), got \(before) -> \(during) -> \(after)")
-    exit(1)
-}
+app.run()

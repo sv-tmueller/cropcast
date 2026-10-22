@@ -39,6 +39,14 @@ struct ShimClassNames: Sendable {
 /// the last reference removes it. Sleep and display-change handling
 /// (`terminationHandler`) is intentionally not exposed; the integration batch
 /// owns that.
+///
+/// The process must run the AppKit event loop (`NSApplication.run()`, as the
+/// menu bar app does) while a display exists. Under Swift's async main or a
+/// bare `CFRunLoopRun()`, CoreGraphics stops updating this process's display
+/// list after the placement transaction: `stop()` still removes the display
+/// system-wide, but `CGGetActiveDisplayList` in this process keeps listing it,
+/// so `waitUntilOnline` of the next `start()` times out with
+/// `.didNotComeOnline`.
 @MainActor
 public final class VirtualDisplay {
     static let name = "CropCast"
