@@ -17,10 +17,15 @@ packages.
   hidden too; extra windows of other apps go through `excludeWindows(_:)`
   (`exceptingWindows`). Listing own windows one by one is only a fallback when
   the app is missing from the shareable content.
+  Lifecycle: start and stop are serialized (pure `CaptureLifecycle`, unit
+  tested). `start` on a starting or running capture throws `.alreadyRunning`
+  (it never restarts). `stop()` during a start cancels it: the start stops its
+  own stream and throws `.notRunning`. `updateRegion` and `excludeWindows`
+  during a start are stored and applied before `start` returns.
 - `MirrorView` / `MirrorWindow`: `AVSampleBufferDisplayLayer`-backed view and a
   borderless full-screen window on a target display.
 - `RegionMirrorError`: the only error type thrown. `-3801` maps to
-  `.permissionDenied`.
+  `.permissionDenied`; `.alreadyRunning` is a second `start`.
 
 The module never requests Screen Recording permission. It checks it and throws
 `.permissionDenied`; requesting it is the app's job (batch 2).
