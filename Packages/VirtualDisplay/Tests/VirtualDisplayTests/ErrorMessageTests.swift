@@ -14,7 +14,7 @@ struct ErrorMessageTests {
     ]
 
     private static func description(_ error: VirtualDisplayError) -> String? {
-        (error as? LocalizedError)?.errorDescription
+        ((error as any Error) as? LocalizedError)?.errorDescription
     }
 
     @Test(arguments: all)

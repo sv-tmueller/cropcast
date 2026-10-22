@@ -25,8 +25,8 @@ to `LocalizedError`, so `error.localizedDescription` is a readable sentence for
 each case.
 
 **Requires the AppKit event loop.** The process must run `NSApplication.run()`
-(any real app does) for the rest of its life once it calls `start()`, not only while
-a display exists. Under Swift's async main (top-level `await`) or a bare
+(any real app does) for the rest of its life once it calls `start()`, not only
+while a display exists. Under Swift's async main (top-level `await`) or a bare
 `CFRunLoopRun()`, CoreGraphics stops refreshing this process's display list
 after the placement transaction. `stop()` still removes the display system-wide
 (other processes and `system_profiler` see it gone within about a second), but

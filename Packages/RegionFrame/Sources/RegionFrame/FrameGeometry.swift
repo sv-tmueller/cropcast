@@ -50,9 +50,10 @@ enum FrameGeometry {
         let delta = CGVector(dx: bounded(delta.dx, fallback: 0), dy: bounded(delta.dy, fallback: 0))
         let dir = direction(of: handle)
 
-        // Room between the fixed side and the display edge on each axis. `rect`
-        // is clamped above, so the cap only matters on a display smaller than
-        // 16x9 pt, where even the smallest frame (k = 1) overhangs it.
+        // Room between the fixed side and the display edge on each axis. The
+        // `min(..., bounds.width/height)` cap is a defensive bound and does not
+        // change the result: `rect` is clamped above, and `limitedK` floors k
+        // at 1, so even below 16x9 pt the outcome is the same.
         let roomW = min(dir.x > 0 ? bounds.maxX - rect.minX : rect.maxX - bounds.minX, bounds.width)
         let roomH = min(dir.y > 0 ? bounds.maxY - rect.minY : rect.maxY - bounds.minY, bounds.height)
 
