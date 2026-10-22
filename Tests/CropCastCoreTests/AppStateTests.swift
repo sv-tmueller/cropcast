@@ -30,7 +30,7 @@ struct AppStateTests {
         #expect(!titles(state).contains("Show Frame"))
     }
 
-    @Test func toggleSharingWalksTheSessionPhasesAndTitles() {
+    @Test func toggleSharingFlipsSharingAndTitle() {
         var state = AppState()
         #expect(state.apply(.toggleSharing) == [.startSession])
         #expect(state.phase == .starting)
