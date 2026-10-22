@@ -27,6 +27,11 @@ struct SharingDependencies {
     var makeCapture: (CGDirectDisplayID) -> any RegionCapturing
     /// Runs before each start step; the self-test throws from it to inject a failure.
     var beforeStep: (StartStepID) async throws -> Void
+    #if DEBUG
+    /// Self-test only: the display the frame step uses instead of the chosen
+    /// one, e.g. an unconnected id to reach the `frameNotShown` guard.
+    var sourceDisplayOverride: CGDirectDisplayID?
+    #endif
 
     @MainActor
     static func live() -> SharingDependencies {
@@ -34,7 +39,15 @@ struct SharingDependencies {
             defaults: .standard,
             alerts: AlertPresenter(),
             preflightScreenCapture: { CGPreflightScreenCaptureAccess() },
-            makeCapture: { RegionCapture(sourceDisplayID: $0) },
+            makeCapture: { id in
+                let capture = RegionCapture(sourceDisplayID: id)
+                // Logging only; reacting to a stream that stopped by itself is batch 3.
+                capture.onStop = { error in
+                    SharingController.logger.error(
+                        "capture stopped by itself: \(String(describing: error))")
+                }
+                return capture
+            },
             beforeStep: { _ in })
     }
 }
@@ -68,7 +81,7 @@ enum SessionError: Error, LocalizedError {
 @MainActor
 final class SharingController {
     static let lastSourceDisplayKey = "CropCast.lastSourceDisplayKey"
-    private static let logger = Logger(
+    fileprivate static let logger = Logger(
         subsystem: "com.github.sv-tmueller.cropcast", category: "session")
 
     private(set) var state = AppState()
@@ -79,7 +92,9 @@ final class SharingController {
     private(set) var virtualDisplayID: CGDirectDisplayID?
     /// Awaited after a quit's teardown, before the terminate reply. The
     /// self-test uses it to check the display count and exit.
+    #if DEBUG
     var onQuitTeardownFinished: (@MainActor () async -> Void)?
+    #endif
 
     private let deps: SharingDependencies
     private var sequence: StartSequence?
@@ -157,8 +172,13 @@ final class SharingController {
     private func replyToTerminate(runHook: Bool) {
         guard awaitingTerminateReply else { return }
         awaitingTerminateReply = false
-        Task { [self] in
-            if runHook { await onQuitTeardownFinished?() }
+        #if DEBUG
+        let hook = runHook ? onQuitTeardownFinished : nil
+        #endif
+        Task {
+            #if DEBUG
+            await hook?()
+            #endif
             NSApp.reply(toApplicationShouldTerminate: true)
         }
     }
@@ -287,7 +307,12 @@ final class SharingController {
     }
 
     private func showFrameForSession() throws -> StartUndo {
-        guard let source = chooseSourceDisplay() else { throw SessionError.noSourceDisplay }
+        #if DEBUG
+        let chosen = deps.sourceDisplayOverride ?? chooseSourceDisplay()
+        #else
+        let chosen = chooseSourceDisplay()
+        #endif
+        guard let source = chosen else { throw SessionError.noSourceDisplay }
         let wasVisible = overlay.isVisible
         overlay.show(on: source)
         rememberPlacement()

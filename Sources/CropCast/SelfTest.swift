@@ -52,6 +52,8 @@ final class SelfTest {
             }
             await scenarioFailure(.capture, captureError: InjectedCaptureFailure())
             await scenarioFailure(.capture, captureError: RegionMirrorError.notRunning, cancel: true)
+            await scenarioFrameNotShown(frameVisibleBefore: false)
+            await scenarioFrameNotShown(frameVisibleBefore: true)
             await scenarioDeny()
             await scenarioQuit()
         }
@@ -148,6 +150,51 @@ final class SelfTest {
         finish(name, rig)
     }
 
+    /// The frame step gets a display id that is not connected, so the real
+    /// `frameNotShown` guard fires inside the step (no injected failure). The
+    /// display, screen and mirror steps before it have run and are rolled back;
+    /// the frame is left as the user had it (hidden, or visible on a real display).
+    private func scenarioFrameNotShown(frameVisibleBefore: Bool) async {
+        let name = "fail-in=frame (frame \(frameVisibleBefore ? "visible" : "hidden") before Start)"
+        let n = displayCount()
+        let rig = makeRig(preflight: true, sourceOverride: unconnectedDisplayID())
+        if frameVisibleBefore { rig.menu.apply(.toggleFrame) }
+        let overlay = rig.sharing.overlay
+        expect(overlay.isVisible == frameVisibleBefore, "\(name): pre-Start frame state is as set up")
+        let panels = frameVisibleBefore ? Set(overlay.windowNumbers) : []
+        let regionBefore = overlay.region
+
+        rig.menu.apply(.toggleSharing)
+        expect(await waitPhase(rig, .idle), "\(name): back to idle")
+        expect(await waitCount(n), "\(name): display count \(n) -> \(n) (now \(displayCount()))")
+        expect(
+            Set(visibleWindows().map(\.windowNumber)) == panels,
+            "\(name): no mirror window left, only the frame's own panels if it was visible (\(visibleWindows().count))")
+        expect(overlay.isVisible == frameVisibleBefore, "\(name): frame visibility restored")
+        expect(overlay.region == regionBefore, "\(name): frame placement unchanged")
+        expect(rig.sharing.state.isFrameVisible == frameVisibleBefore, "\(name): menu state matches the frame")
+        expect(rig.alerts.log == [.failure(.frame)], "\(name): exactly one alert, for the frame step (\(rig.alerts.log))")
+        expect(
+            rig.alerts.lastError?.contains("could not be shown on display") == true,
+            "\(name): the alert carries the real frameNotShown error (\((rig.alerts.lastError ?? "nil").replacingOccurrences(of: "\n\n", with: " | ")))")
+        expect(rig.stub.startRegions.isEmpty, "\(name): capture never started")
+
+        if frameVisibleBefore {
+            rig.menu.apply(.toggleFrame)
+            expect(visibleWindows().isEmpty, "\(name): the frame can still be hidden afterwards")
+        }
+        finish(name, rig)
+    }
+
+    /// A display id that is not in the active display list.
+    private func unconnectedDisplayID() -> CGDirectDisplayID {
+        var count: UInt32 = 0
+        CGGetActiveDisplayList(0, nil, &count)
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        CGGetActiveDisplayList(count, &ids, &count)
+        return (ids.max() ?? 0) + 1000
+    }
+
     /// Uses the real permission check. Skipped when this process has the grant.
     private func scenarioDeny() async {
         let name = "deny"
@@ -219,6 +266,7 @@ final class SelfTest {
             }
         }
         var log: [Entry] = []
+        var lastError: String?
 
         func presentPermissionNeeded() {
             log.append(.permission)
@@ -227,6 +275,7 @@ final class SelfTest {
 
         func presentStartFailure(step: StartStepID, error: any Error) {
             log.append(.failure(step))
+            lastError = StartFailureMessage.make(step: step, error: error)
             print("    alert (logged, not shown): \(StartFailureMessage.make(step: step, error: error).replacingOccurrences(of: "\n\n", with: " | "))")
         }
     }
@@ -256,7 +305,8 @@ final class SelfTest {
 
     /// `preflight` nil means the real `CGPreflightScreenCaptureAccess()`.
     private func makeRig(
-        preflight: Bool?, failAt: StartStepID? = nil, captureError: (any Error)? = nil
+        preflight: Bool?, failAt: StartStepID? = nil, captureError: (any Error)? = nil,
+        sourceOverride: CGDirectDisplayID? = nil
     ) -> Rig {
         let suite = "com.github.sv-tmueller.cropcast.selftest.\(UUID().uuidString)"
         let alerts = LoggingPresenter()
@@ -274,7 +324,8 @@ final class SelfTest {
             beforeStep: { step in
                 // The capture step fails inside the stub instead (`captureError`).
                 if step == failAt, step != .capture { throw Injected(step: step) }
-            })
+            },
+            sourceDisplayOverride: sourceOverride)
         let sharing = SharingController(deps: deps)
         let menu = StatusMenuController(sharing: sharing)
         delegate.menuController = menu
