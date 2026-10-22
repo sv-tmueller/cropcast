@@ -13,9 +13,13 @@ import CoreGraphics
 /// `exceptingWindows` and are hidden, while our own windows are never put there.
 /// Listing our own windows one by one (`excludingWindows:`) is only the fallback
 /// for when this app is missing from the shareable content.
-enum ContentFilterPlan: Equatable {
-    /// `excludingApplications: [selfApp], exceptingWindows: <ids>`.
-    case excludingApp(exceptingWindows: [CGWindowID])
+///
+/// `App` is the application value (`SCRunningApplication` in production). The
+/// app-exclusion case carries it, so "exclude the app" cannot be expressed
+/// without having the app: there is no fail-open state.
+enum ContentFilterPlan<App: Equatable>: Equatable {
+    /// `excludingApplications: [app], exceptingWindows: <ids>`.
+    case excludingApp(App, exceptingWindows: [CGWindowID])
     /// `excludingWindows: <ids>`; used only when this app is not listed.
     case excludingWindows([CGWindowID])
 
@@ -27,7 +31,7 @@ enum ContentFilterPlan: Equatable {
 
     static func make(
         ownProcessID: pid_t,
-        selfAppFound: Bool,
+        selfApp: App?,
         windows: [Window],
         extraWindowIDs: [CGWindowID]
     ) -> ContentFilterPlan {
@@ -35,8 +39,8 @@ enum ContentFilterPlan: Equatable {
             windows
             .filter { extraWindowIDs.contains($0.windowID) && $0.processID != ownProcessID }
             .map(\.windowID)
-        if selfAppFound {
-            return .excludingApp(exceptingWindows: foreignExtras)
+        if let selfApp {
+            return .excludingApp(selfApp, exceptingWindows: foreignExtras)
         }
         let ownWindows = windows.filter { $0.processID == ownProcessID }.map(\.windowID)
         return .excludingWindows(ownWindows + foreignExtras)
