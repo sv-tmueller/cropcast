@@ -27,7 +27,7 @@ but is not a signed bundle, so use the `.app` for anything involving
 permissions. The menu bar icon (dashed rectangle) offers Start/Stop Sharing,
 Show/Hide Frame, a Presets submenu (Left, Center, Right) and Quit. The global
 hotkey Control-Option-Command-F triggers the same action as Show/Hide Frame.
-Sharing, frame and presets are placeholders until the modules are wired in.
+For how to share a region in Teams, see "Using CropCast with Teams" below.
 
 ## Stable code signing
 
@@ -65,6 +65,12 @@ be writable, and neither command uses `sudo`:
 
     CROPCAST_INSTALL_DIR="$HOME/Applications" make install
 
+`make uninstall` only looks in `CROPCAST_INSTALL_DIR` (default
+`/Applications`), so a copy installed into a custom directory needs the same
+variable to be removed:
+
+    CROPCAST_INSTALL_DIR="$HOME/Applications" make uninstall
+
 The install ends with an `open "<path>"` line to launch the app. `make
 uninstall` on a machine without CropCast reports "not installed" and succeeds.
 If the build was signed ad-hoc, `make install` prints a Screen Recording
@@ -94,8 +100,9 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
    the region on it, shows the frame on your source display and starts
    capturing the frame's region. If any step fails, everything already started
    is undone and an alert "Sharing did not start" names the step.
-2. The source display is the last one you used if it is still connected, else
-   the widest connected display. It is never the CropCast virtual display.
+2. The source display is the display the frame was last on if it is still
+   connected, else the widest connected display. It is never the CropCast
+   virtual display.
 3. Position the frame over what you want to share. Dragging or resizing it, or
    choosing Presets > Left, Center or Right (applied to the frame on its
    current display), updates the shared region live. Viewers never see the
@@ -111,29 +118,39 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
 ### Troubleshooting
 
 - **No permission:** the alert appears on every Start until Screen Recording
-  is granted. Grant it in System Settings and reopen CropCast. If it was
-  working before a rebuild or reinstall, the signature changed; use the
+  is granted. Grant it in System Settings, reopen CropCast and start again. If
+  it was working before a rebuild or reinstall, the signature changed; use the
   `tccutil reset` command above, or sign with a stable certificate.
-- **The screen is not listed in Teams:** the CropCast screen only exists while
-  the menu reads "Stop Sharing". Wait out "Starting…", check that no "Sharing
-  did not start" alert appeared, then reopen Teams' Share picker. The entry may be
-  named "Screen N", so do not look only for "CropCast".
+- **The screen is not listed in Teams:** the CropCast screen exists only
+  during a session, so look for it once the menu reads "Stop Sharing". Wait
+  out "Starting…", check that no "Sharing did not start" alert appeared, then
+  reopen Teams' Share picker. The entry may be named "Screen N", so do not
+  look only for "CropCast".
 - **The share is black or stops updating:** check that the permission is
   granted for the current signature (see "No permission"). If Screen Recording
   is revoked while sharing, the capture stops but the menu still says "Stop
   Sharing"; reacting to that is not handled yet. Choose Stop Sharing, fix the
   permission and start again.
-- **The frame is on the wrong display:** the source display is chosen on each
-  Start (last used if connected, else the widest). Stop Sharing, then Start
-  Sharing again.
-- **Not handled yet:** sleep and wake, a display being unplugged or changing
-  mode, and launch at login. If a session misbehaves after one of these,
-  choose Stop Sharing and start again.
+- **The frame is on the wrong display:** choosing the display is not supported
+  yet. Start keeps the display the frame was last on while it is connected, so
+  Stop Sharing and Start Sharing again does not move it. To reset it, quit
+  CropCast, run
+
+      defaults delete com.github.sv-tmueller.cropcast \
+          CropCast.lastSourceDisplayKey
+
+  and reopen CropCast. Start then falls back to the widest connected display.
+- **Not handled yet:** sleep/wake and a display connecting, disconnecting or
+  changing mode. If a session misbehaves after one of these, choose Stop
+  Sharing and start again.
+- **Missing feature:** launch at login. CropCast does not start by itself, so
+  open it after logging in.
 
 ### Teams test checklist
 
-- [ ] `make install` puts CropCast.app in place and `open /Applications/CropCast.app`
-      launches it (menu bar icon, no Dock icon).
+- [ ] `make install` puts CropCast.app in place and
+      `open /Applications/CropCast.app` launches it (menu bar icon, no Dock
+      icon).
 - [ ] Start Sharing without Screen Recording permission shows the permission
       alert and starts nothing; "Open System Settings" opens the Screen
       Recording pane.
@@ -146,8 +163,9 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
 - [ ] Control-Option-Command-F hides and shows the frame.
 - [ ] Stop Sharing ("Stopping…", then "Start Sharing") ends the share, and the
       CropCast screen disappears from the picker.
-- [ ] Start and Stop a second time, then Quit CropCast while sharing; the
-      virtual display is gone afterwards.
+- [ ] Start again, then Quit while sharing; the virtual display is gone
+      afterwards: `system_profiler SPDisplaysDataType | grep -c CropCast`
+      prints 0.
 - [ ] `make uninstall` removes the app; a second run prints "not installed".
 
 ## Manual verification (app shell)
