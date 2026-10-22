@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CropCastCore
 
@@ -12,6 +13,7 @@ struct AppStateTests {
 
     @Test func defaultStateIsIdle() {
         let state = AppState()
+        #expect(state.phase == .idle)
         #expect(state.isSharing == false)
         #expect(state.isFrameVisible == false)
         #expect(state.lastPreset == nil)
@@ -30,11 +32,37 @@ struct AppStateTests {
 
     @Test func toggleSharingFlipsSharingAndTitle() {
         var state = AppState()
-        state.apply(.toggleSharing)
-        #expect(state.isSharing == true)
+        #expect(state.apply(.toggleSharing) == [.startSession])
+        #expect(state.phase == .starting)
+        #expect(titles(state).first == "Starting…")
         #expect(state.isFrameVisible == false)
-        #expect(titles(state).contains("Stop Sharing"))
-        #expect(!titles(state).contains("Start Sharing"))
+
+        state.handle(.startSucceeded)
+        #expect(state.isSharing)
+        #expect(titles(state).first == "Stop Sharing")
+
+        #expect(state.apply(.toggleSharing) == [.stopSession])
+        #expect(state.phase == .stopping)
+        #expect(titles(state).first == "Stopping…")
+
+        state.handle(.stopCompleted)
+        #expect(state.phase == .idle)
+        #expect(titles(state).first == "Start Sharing")
+    }
+
+    @Test func toggleSharingIsIgnoredWhileStartingOrStopping() {
+        var state = AppState()
+        state.apply(.toggleSharing)
+        #expect(state.apply(.toggleSharing) == [])
+        #expect(state.phase == .starting)
+    }
+
+    @Test func aFailedStartReturnsToStartSharing() {
+        var state = AppState()
+        state.apply(.toggleSharing)
+        #expect(state.handle(.startFailed) == [.showStartFailure])
+        #expect(state.phase == .idle)
+        #expect(titles(state).first == "Start Sharing")
     }
 
     @Test func applyingTogglesTwiceRestoresStart() {
@@ -42,7 +70,9 @@ struct AppStateTests {
         state.apply(.toggleFrame)
         state.apply(.toggleFrame)
         state.apply(.toggleSharing)
+        state.handle(.startSucceeded)
         state.apply(.toggleSharing)
+        state.handle(.stopCompleted)
         #expect(state == AppState())
     }
 
@@ -59,8 +89,16 @@ struct AppStateTests {
         var state = AppState()
         state.apply(.toggleFrame)
         let before = state
-        state.apply(.quit)
+        #expect(state.apply(.quit) == [])
         #expect(state == before)
+    }
+
+    @Test func quitRequestedWhileSharingStopsThenTerminates() {
+        var state = AppState()
+        state.apply(.toggleSharing)
+        state.handle(.startSucceeded)
+        #expect(state.handle(.quitRequested) == [.stopSession])
+        #expect(state.handle(.stopCompleted) == [.terminate])
     }
 
     @Test func menuEntriesListEveryItemInOrder() {
@@ -77,5 +115,29 @@ struct AppStateTests {
             .separator,
             .item(title: "Quit CropCast", action: .quit),
         ])
+    }
+}
+
+@Suite("StartFailureMessage")
+struct StartFailureMessageTests {
+    private struct Described: Error, LocalizedError {
+        var errorDescription: String? { "the described reason" }
+    }
+    private struct Plain: Error {}
+
+    @Test func usesTheLocalizedDescriptionWhenThereIsOne() {
+        let text = StartFailureMessage.make(step: .display, error: Described())
+        #expect(text == "CropCast could not create the virtual display.\n\nthe described reason")
+    }
+
+    @Test func fallsBackToTheErrorDump() {
+        let text = StartFailureMessage.make(step: .capture, error: Plain())
+        #expect(text == "CropCast could not start capturing.\n\nPlain()")
+    }
+
+    @Test(arguments: StartStepID.allCases)
+    func everyStepHasADistinctTitle(step: StartStepID) {
+        let others = StartStepID.allCases.filter { $0 != step }
+        #expect(!others.contains { $0.title == step.title })
     }
 }

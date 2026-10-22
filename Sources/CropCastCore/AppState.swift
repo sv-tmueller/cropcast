@@ -20,17 +20,24 @@ public enum MenuEntry: Sendable, Equatable {
 
 /// App-level state shown in the menu bar. Pure Swift: no AppKit.
 public struct AppState: Sendable, Equatable {
-    public var isSharing = false
+    public private(set) var session = SessionMachine()
+    /// The glue reads this back from the frame overlay after every overlay call.
     public var isFrameVisible = false
     public var lastPreset: FramePreset?
 
     public init() {}
 
-    /// Applies a user command. `.quit` does not change state; the glue terminates the app.
-    public mutating func apply(_ action: MenuAction) {
+    public var phase: SessionPhase { session.phase }
+    public var isSharing: Bool { phase == .sharing }
+
+    /// Applies a user command and returns what the glue has to do about the
+    /// sharing session. `.quit` does not change state: the glue terminates the
+    /// app, and `applicationShouldTerminate` reports it as `.quitRequested`.
+    @discardableResult
+    public mutating func apply(_ action: MenuAction) -> [SessionEffect] {
         switch action {
         case .toggleSharing:
-            isSharing.toggle()
+            return session.handle(.toggleSharing)
         case .toggleFrame:
             isFrameVisible.toggle()
         case .selectPreset(let preset):
@@ -38,12 +45,19 @@ public struct AppState: Sendable, Equatable {
         case .quit:
             break
         }
+        return []
+    }
+
+    /// Feeds a session event (start/stop outcome, quit request) to the machine.
+    @discardableResult
+    public mutating func handle(_ event: SessionEvent) -> [SessionEffect] {
+        session.handle(event)
     }
 
     /// The menu for the current state, in display order.
     public func menuEntries() -> [MenuEntry] {
         [
-            .item(title: isSharing ? "Stop Sharing" : "Start Sharing", action: .toggleSharing),
+            .item(title: sharingTitle, action: .toggleSharing),
             .item(title: isFrameVisible ? "Hide Frame" : "Show Frame", action: .toggleFrame),
             .separator,
             .submenu(title: "Presets", entries: [
@@ -54,5 +68,14 @@ public struct AppState: Sendable, Equatable {
             .separator,
             .item(title: "Quit CropCast", action: .quit),
         ]
+    }
+
+    private var sharingTitle: String {
+        switch phase {
+        case .idle: return "Start Sharing"
+        case .starting: return "Starting…"
+        case .sharing: return "Stop Sharing"
+        case .stopping: return "Stopping…"
+        }
     }
 }
