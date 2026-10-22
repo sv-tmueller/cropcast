@@ -12,8 +12,11 @@ packages.
   builds the complete `SCStreamConfiguration` (default 2560x1440 at 60 fps).
 - `RegionCapture`: `start(region:renderer:)`, `updateRegion(_:)`,
   `excludeWindows(_:)`, `stop()`, `onStop`, `deliveredFrameCount`. Regions are
-  AppKit global coordinates (points, bottom-left origin). The app's own windows
-  are always excluded from capture.
+  AppKit global coordinates (points, bottom-left origin). The whole app is
+  excluded from capture (`excludingApplications`), so windows created later are
+  hidden too; extra windows of other apps go through `excludeWindows(_:)`
+  (`exceptingWindows`). Listing own windows one by one is only a fallback when
+  the app is missing from the shareable content.
 - `MirrorView` / `MirrorWindow`: `AVSampleBufferDisplayLayer`-backed view and a
   borderless full-screen window on a target display.
 - `RegionMirrorError`: the only error type thrown. `-3801` maps to

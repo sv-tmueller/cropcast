@@ -126,22 +126,34 @@ public final class RegionCapture {
         return display
     }
 
-    /// Excludes this whole app (so windows created later are excluded too), plus
-    /// any extra windows owned by other apps.
+    /// Builds the filter from ``ContentFilterPlan``: the whole app is excluded
+    /// whenever it is listed in the shareable content (so windows created later
+    /// are excluded too), and extra windows owned by other apps are hidden via
+    /// `exceptingWindows`.
     private func makeFilter(display: SCDisplay, content: SCShareableContent) -> SCContentFilter {
         let pid = getpid()
-        let foreignExtras = content.windows.filter { window in
-            extraExcludedWindowIDs.contains(window.windowID)
-                && window.owningApplication?.processID != pid
-        }
         let selfApp = content.applications.first { $0.processID == pid }
+        let plan = ContentFilterPlan.make(
+            ownProcessID: pid,
+            selfAppFound: selfApp != nil,
+            windows: content.windows.map {
+                .init(windowID: $0.windowID, processID: $0.owningApplication?.processID ?? -1)
+            },
+            extraWindowIDs: extraExcludedWindowIDs)
 
-        if foreignExtras.isEmpty, let selfApp {
-            return SCContentFilter(
-                display: display, excludingApplications: [selfApp], exceptingWindows: [])
+        func windows(_ ids: [CGWindowID]) -> [SCWindow] {
+            ids.compactMap { id in content.windows.first { $0.windowID == id } }
         }
-        // Fallback: the app is not listed, so exclude its windows one by one.
-        let ownWindows = content.windows.filter { $0.owningApplication?.processID == pid }
-        return SCContentFilter(display: display, excludingWindows: ownWindows + foreignExtras)
+        switch (plan, selfApp) {
+        case (.excludingApp(let exceptingWindows), let selfApp?):
+            return SCContentFilter(
+                display: display, excludingApplications: [selfApp],
+                exceptingWindows: windows(exceptingWindows))
+        case (.excludingWindows(let ids), _):
+            return SCContentFilter(display: display, excludingWindows: windows(ids))
+        case (.excludingApp, nil):
+            // Unreachable: the plan only excludes the app when it was found.
+            return SCContentFilter(display: display, excludingWindows: [])
+        }
     }
 }
