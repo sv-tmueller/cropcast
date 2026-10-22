@@ -35,8 +35,19 @@ func describe(_ rect: CGRect) -> String {
     "origin=(\(Int(rect.origin.x)), \(Int(rect.origin.y))) size=\(Int(rect.width))x\(Int(rect.height))"
 }
 
+func activeDisplayCount() -> Int {
+    var count: UInt32 = 0
+    guard CGGetActiveDisplayList(0, nil, &count) == .success else { return 0 }
+    return Int(count)
+}
+
+func describeMode(of displayID: CGDirectDisplayID) -> String {
+    guard let mode = CGDisplayCopyDisplayMode(displayID) else { return "unknown" }
+    return "\(mode.pixelWidth)x\(mode.pixelHeight) px @ \(mode.refreshRate) Hz"
+}
+
 let seconds = parseSeconds(Array(CommandLine.arguments.dropFirst()))
-let before = VirtualDisplay.activeDisplayCount()
+let before = activeDisplayCount()
 log("active displays before: \(before)")
 
 let display: VirtualDisplay
@@ -62,10 +73,10 @@ sigint.resume()
 let bounds = CGDisplayBounds(display.displayID)
 let main = CGDisplayBounds(CGMainDisplayID())
 log("displayID: \(display.displayID)")
-log("mode: \(Int(bounds.width))x\(Int(bounds.height)) (main display: \(describe(main)))")
+log("mode: \(describeMode(of: display.displayID)) (main display: \(describe(main)))")
 log("requested origin: (\(Int(display.requestedOrigin.x)), \(Int(display.requestedOrigin.y)))")
 log("actual bounds: \(describe(bounds))")
-let during = VirtualDisplay.activeDisplayCount()
+let during = activeDisplayCount()
 log("active displays during: \(during)")
 log("running for \(seconds) s (Ctrl-C to stop early)")
 
@@ -73,11 +84,11 @@ try? await Task.sleep(for: .seconds(seconds))
 
 display.stop()
 log("stopped, waiting for the display to go away")
-var after = VirtualDisplay.activeDisplayCount()
+var after = activeDisplayCount()
 let deadline = ContinuousClock.now + .seconds(5)
 while after != before && ContinuousClock.now < deadline {
     try? await Task.sleep(for: .milliseconds(100))
-    after = VirtualDisplay.activeDisplayCount()
+    after = activeDisplayCount()
 }
 log("active displays after: \(after)")
 

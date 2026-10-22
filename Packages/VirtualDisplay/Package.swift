@@ -23,7 +23,9 @@ let package = Package(
             name: "vdisplay-demo",
             dependencies: ["VirtualDisplay"]
         ),
-        .testTarget(name: "VirtualDisplayTests", dependencies: ["VirtualDisplay"]),
+        .testTarget(
+            name: "VirtualDisplayTests",
+            dependencies: ["VirtualDisplay", "CVirtualDisplayShim"]),
     ],
     swiftLanguageModes: [.v6]
 )

@@ -45,6 +45,9 @@ static BOOL ClassRespondsToAll(Class cls, NSArray<NSString *> *selectors) {
 @implementation CVDVirtualDisplayShim {
     // Strong reference: releasing it removes the display from the system.
     id _display;
+    // The descriptor's callback queue. The display owns it too; keeping it here
+    // makes the shim's lifetime the single owner story.
+    dispatch_queue_t _queue;
     uint32_t _displayID;
 }
 
@@ -90,18 +93,19 @@ static BOOL ClassRespondsToAll(Class cls, NSArray<NSString *> *selectors) {
         ClassRespondsToAll(descriptorClass,
                            @[@"setName:", @"setMaxPixelsWide:", @"setMaxPixelsHigh:",
                              @"setSizeInMillimeters:", @"setVendorID:", @"setProductID:",
-                             @"setSerialNum:"]) &&
+                             @"setSerialNum:", @"setRedPrimary:", @"setGreenPrimary:",
+                             @"setBluePrimary:", @"setWhitePoint:", @"setQueue:"]) &&
         ClassRespondsToAll(settingsClass, @[@"setHiDPI:", @"setModes:"]);
-    // The queue setter has been spelled both ways across releases.
-    BOOL hasQueueSetter =
-        [descriptorClass instancesRespondToSelector:NSSelectorFromString(@"setQueue:")] ||
-        [descriptorClass instancesRespondToSelector:NSSelectorFromString(@"setDispatchQueue:")];
-    if (!selectorsOK || !hasQueueSetter) {
+    if (!selectorsOK) {
         Fail(error, CVDShimErrorApiUnavailable,
              @"Private CGVirtualDisplay API has an unexpected shape on this macOS version");
         return nil;
     }
 
+    // Declared outside @try so @catch can release it: ARC does not release
+    // locals when an exception unwinds past them (no -fobjc-arc-exceptions), and
+    // a leaked display would stay on screen after start() reported failure.
+    CGVirtualDisplay *display = nil;
     @try {
         CGVirtualDisplayDescriptor *descriptor = [[descriptorClass alloc] init];
         if (!descriptor) {
@@ -120,13 +124,9 @@ static BOOL ClassRespondsToAll(Class cls, NSArray<NSString *> *selectors) {
         descriptor.greenPrimary = CGPointMake(0.30, 0.60);
         descriptor.bluePrimary = CGPointMake(0.15, 0.06);
         descriptor.whitePoint = CGPointMake(0.3127, 0.3290);
-        if ([descriptorClass instancesRespondToSelector:NSSelectorFromString(@"setQueue:")]) {
-            descriptor.queue = queue;
-        } else {
-            [(id)descriptor setValue:queue forKey:@"dispatchQueue"];
-        }
+        descriptor.queue = queue;
 
-        CGVirtualDisplay *display = [[displayClass alloc] initWithDescriptor:descriptor];
+        display = [[displayClass alloc] initWithDescriptor:descriptor];
         if (!display) {
             Fail(error, CVDShimErrorCreationFailed,
                  @"The system refused to create the virtual display");
@@ -151,9 +151,11 @@ static BOOL ClassRespondsToAll(Class cls, NSArray<NSString *> *selectors) {
 
         CVDVirtualDisplayShim *shim = [[CVDVirtualDisplayShim alloc] initPrivate];
         shim->_display = display;
+        shim->_queue = queue;
         shim->_displayID = display.displayID;
         return shim;
     } @catch (NSException *exception) {
+        display = nil;  // remove a half-configured display
         Fail(error, CVDShimErrorCreationFailed,
              [NSString stringWithFormat:@"Objective-C exception while creating the display: %@",
                                         exception.reason ?: exception.name]);

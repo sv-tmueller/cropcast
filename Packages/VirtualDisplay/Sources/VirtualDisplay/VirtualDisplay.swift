@@ -41,10 +41,10 @@ struct ShimClassNames: Sendable {
 /// owns that.
 @MainActor
 public final class VirtualDisplay {
-    public static let name = "CropCast"
-    public static let width: UInt32 = 2560
-    public static let height: UInt32 = 1440
-    public static let refreshRate: Double = 60
+    static let name = "CropCast"
+    static let width: UInt32 = 2560
+    static let height: UInt32 = 1440
+    static let refreshRate: Double = 60
 
     public let displayID: CGDirectDisplayID
     /// Where `start()` asked macOS to put the display (CoreGraphics global
@@ -94,7 +94,7 @@ public final class VirtualDisplay {
 
     // MARK: - Private
 
-    private static func mapShimError(_ error: NSError) -> VirtualDisplayError {
+    static func mapShimError(_ error: NSError) -> VirtualDisplayError {
         let message = error.localizedDescription
         guard error.domain == CVDShimErrorDomain,
             let code = CVDShimError.Code(rawValue: error.code)
@@ -136,9 +136,6 @@ public final class VirtualDisplay {
         error = CGCompleteDisplayConfiguration(config, .forSession)
         guard error == .success else { throw .placementFailed(error) }
     }
-
-    /// Number of currently active displays (the demo logs this).
-    public static func activeDisplayCount() -> Int { activeDisplayIDs().count }
 
     static func activeDisplayIDs() -> [CGDirectDisplayID] {
         var count: UInt32 = 0
