@@ -49,6 +49,12 @@ struct CaptureSettingsTests {
         #expect(config.pixelFormat == kCVPixelFormatType_32BGRA)
     }
 
+    @Test("configuration keeps the SDK default queue depth")
+    func queueDepth() {
+        let config = CaptureSettings().makeConfiguration(sourceRect: sourceRect)
+        #expect(config.queueDepth == SCStreamConfiguration().queueDepth)
+    }
+
     @Test("custom settings are honoured")
     func customSettings() {
         let settings = CaptureSettings(width: 1920, height: 1080, framesPerSecond: 30, showsCursor: false)

@@ -37,7 +37,6 @@ public struct CaptureSettings: Sendable, Equatable {
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(framesPerSecond))
         config.showsCursor = showsCursor
         config.pixelFormat = kCVPixelFormatType_32BGRA
-        config.queueDepth = 5
         return config
     }
 }
