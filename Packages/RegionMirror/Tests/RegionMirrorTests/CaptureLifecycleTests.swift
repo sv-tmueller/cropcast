@@ -44,7 +44,7 @@ struct CaptureLifecycleTests {
         let t2 = lifecycle.beginStart()!
         let committed1 = lifecycle.commit(t1, stream: "old")
         #expect(!committed1)
-        #expect(lifecycle.phase == .starting(t2))
+        #expect(lifecycle.phase == .starting(t2, endedError: nil))
         let committed2 = lifecycle.commit(t2, stream: "new")
         #expect(committed2)
         #expect(lifecycle.runningStream == "new")
@@ -58,7 +58,7 @@ struct CaptureLifecycleTests {
         let t1 = lifecycle.beginStart()!
         let started1 = lifecycle.beginStart()
         #expect(started1 == nil)
-        #expect(lifecycle.phase == .starting(t1))
+        #expect(lifecycle.phase == .starting(t1, endedError: nil))
         let committed1 = lifecycle.commit(t1, stream: "s1")
         #expect(committed1)
         let started2 = lifecycle.beginStart()
@@ -148,7 +148,7 @@ struct CaptureLifecycleTests {
         _ = lifecycle.stop()
         let t2 = lifecycle.beginStart()!
         lifecycle.startFailed(t1)
-        #expect(lifecycle.phase == .starting(t2))
+        #expect(lifecycle.phase == .starting(t2, endedError: nil))
     }
 
     @Test("streamEnded from an old stream does not drop the newer one")
@@ -168,13 +168,13 @@ struct CaptureLifecycleTests {
         #expect(lifecycle.phase == .idle)
     }
 
-    @Test("streamEnded while still starting goes idle without reporting, and the commit fails")
+    @Test("streamEnded while still starting stays starting, marked ended, without reporting; the commit fails")
     func streamEndedWhileStarting() {
         var lifecycle = Lifecycle()
         let t1 = lifecycle.beginStart()!
         let reported1 = lifecycle.streamEnded(t1, error: failure)
         #expect(!reported1)
-        #expect(lifecycle.phase == .idle)
+        #expect(lifecycle.phase == .starting(t1, endedError: failure))
         #expect(!lifecycle.isCurrent(t1))
         let committed1 = lifecycle.commit(t1, stream: "s1")
         #expect(!committed1)
@@ -215,7 +215,7 @@ struct CaptureLifecycleTests {
         let t2 = lifecycle.beginStart()!
         let reported1 = lifecycle.streamEnded(t1, error: failure)
         #expect(!reported1)
-        #expect(lifecycle.phase == .starting(t2))
+        #expect(lifecycle.phase == .starting(t2, endedError: nil))
         #expect(lifecycle.endedError(for: t2) == nil)
         #expect(lifecycle.endedError(for: t1) == nil)
     }
@@ -230,14 +230,67 @@ struct CaptureLifecycleTests {
         #expect(lifecycle.endedError(for: t1) == nil)
     }
 
-    @Test("a new beginStart clears the recorded error")
-    func beginStartClearsEndedError() {
+    @Test("beginStart is refused while a start has ended by itself and not yet resolved")
+    func beginStartRefusedWhileStartingButEnded() {
         var lifecycle = Lifecycle()
         let t1 = lifecycle.beginStart()!
         _ = lifecycle.streamEnded(t1, error: failure)
-        let t2 = lifecycle.beginStart()!
+        let started1 = lifecycle.beginStart()
+        #expect(started1 == nil)
+        #expect(lifecycle.phase == .starting(t1, endedError: failure))
+    }
+
+    @Test("the ended error stays readable until startFailed or stop")
+    func endedErrorReadableUntilResolved() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        _ = lifecycle.streamEnded(t1, error: failure)
+        _ = lifecycle.beginStart()
+        _ = lifecycle.regionUpdate(rectA)
+        #expect(lifecycle.endedError(for: t1) == failure)
+        lifecycle.startFailed(t1)
+        #expect(lifecycle.endedError(for: t1) == nil)
+    }
+
+    @Test("after startFailed of an ended start, beginStart succeeds with no recorded error")
+    func beginStartAfterEndedStartFailed() throws {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        _ = lifecycle.streamEnded(t1, error: failure)
+        lifecycle.startFailed(t1)
+        #expect(lifecycle.phase == .idle)
+        let started2 = lifecycle.beginStart()
+        let t2 = try #require(started2)
+        #expect(t2 != t1)
         #expect(lifecycle.endedError(for: t1) == nil)
         #expect(lifecycle.endedError(for: t2) == nil)
+        #expect(lifecycle.phase == .starting(t2, endedError: nil))
+    }
+
+    @Test("an ended start cannot commit or take the pending region")
+    func endedStartCannotCommit() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        _ = lifecycle.regionUpdate(rectA)
+        _ = lifecycle.streamEnded(t1, error: failure)
+        let taken1 = lifecycle.takePendingRegion(t1)
+        #expect(taken1 == nil)
+        let committed1 = lifecycle.commit(t1, stream: "late")
+        #expect(!committed1)
+        #expect(lifecycle.runningStream == nil)
+    }
+
+    @Test("regionUpdate on an ended start is notRunning and stores nothing")
+    func regionUpdateOnEndedStart() {
+        var lifecycle = Lifecycle()
+        let t1 = lifecycle.beginStart()!
+        _ = lifecycle.streamEnded(t1, error: failure)
+        let decision1 = lifecycle.regionUpdate(rectA)
+        #expect(decision1 == .notRunning)
+        lifecycle.startFailed(t1)
+        let t2 = lifecycle.beginStart()!
+        let taken1 = lifecycle.takePendingRegion(t2)
+        #expect(taken1 == nil)
     }
 
     @Test("stop while running returns the stream once, the second stop returns nil")

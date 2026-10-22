@@ -17,7 +17,9 @@ import ScreenCaptureKit
 /// ``RegionMirrorError/alreadyRunning`` (it never restarts); `stop()` during a
 /// start cancels that start, which stops its own stream and throws
 /// ``RegionMirrorError/notRunning``. A stream that ends by itself during a
-/// start makes that start throw the stream's error instead.
+/// start makes that start throw the stream's error instead; that start keeps
+/// the lifecycle until it has torn down, so a `start` in between throws
+/// ``RegionMirrorError/alreadyRunning``.
 ///
 /// The class never requests Screen Recording permission; it only checks it.
 @MainActor
@@ -105,8 +107,10 @@ public final class RegionCapture {
                 throw RegionMirrorError.notRunning
             }
         } catch {
-            // Read before the teardown await: once the stream ended, the phase is
-            // idle and a new start could clear the record while we suspend.
+            // An ended start keeps the lifecycle (starting, marked ended) until
+            // startFailed below, so no new start can run meanwhile. Read before
+            // the teardown await, because a stop() during it clears the record
+            // and that cancellation must win.
             let endedError = lifecycle.endedError(for: token)
             if let created { await tearDown(created) }
             lifecycle.startFailed(token)
