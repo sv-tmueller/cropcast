@@ -10,8 +10,11 @@ public enum RegionMirrorError: Error, Equatable, Sendable {
     case displayNotFound(CGDirectDisplayID)
     /// The requested region does not overlap the source display.
     case regionOutsideDisplay
-    /// The operation needs a running capture.
+    /// The operation needs a running capture, or a start was cancelled by `stop()`.
     case notRunning
+    /// ``RegionCapture/start(region:renderer:)`` was called while a capture is
+    /// already starting or running.
+    case alreadyRunning
     /// ScreenCaptureKit (or another system call) failed.
     case captureFailed(code: Int, description: String)
 
@@ -43,6 +46,8 @@ extension RegionMirrorError: LocalizedError {
             return "The region does not overlap the source display."
         case .notRunning:
             return "Capture is not running."
+        case .alreadyRunning:
+            return "Capture is already starting or running."
         case .captureFailed(let code, let description):
             return "Capture failed (\(code)): \(description)"
         }

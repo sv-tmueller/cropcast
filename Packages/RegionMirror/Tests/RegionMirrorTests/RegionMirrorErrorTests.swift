@@ -42,6 +42,7 @@ struct RegionMirrorErrorTests {
     func descriptions() {
         let all: [RegionMirrorError] = [
             .permissionDenied, .displayNotFound(7), .regionOutsideDisplay, .notRunning,
+            .alreadyRunning,
             .captureFailed(code: 1, description: "x"),
         ]
         for error in all {
