@@ -21,6 +21,8 @@ final class BorderPanel: NSPanel {
         // `defer: false` gives a valid windowNumber right away.
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         contentView = borderView
+        // Set before `level`: changing `isFloatingPanel` resets the level to .floating.
+        isFloatingPanel = true
         level = .statusBar
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         hidesOnDeactivate = false
@@ -29,7 +31,6 @@ final class BorderPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         isReleasedWhenClosed = false
-        isFloatingPanel = true
         animationBehavior = .none
     }
 
