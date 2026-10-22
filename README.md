@@ -175,6 +175,9 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
 - [ ] `codesign --verify --strict build/CropCast.app` exits 0.
 - [ ] `open build/CropCast.app`: an icon appears in the menu bar and there is
       no Dock icon and no app window.
+- [ ] After `make install`, Finder shows the CropCast icon (not the generic app
+      icon) for `/Applications/CropCast.app`; if stale, `touch` the app and
+      `killall Finder`.
 - [ ] Opening the menu shows Start Sharing, Show Frame, Presets (Left, Center,
       Right) and Quit CropCast.
 - [ ] Pressing Control-Option-Command-F changes the menu label between
