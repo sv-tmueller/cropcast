@@ -34,6 +34,11 @@ overlay.hide()
 overlay.windowNumbers   // 4 panel window numbers, stable across show/hide
 ```
 
+An explicit display id that is not connected makes `show(on:)` and
+`apply(preset:on:)` do nothing (no state change, no `regionDidChange`). Without
+an id, the last saved display still connected wins, then the display under the
+mouse, then the first.
+
 `FrameRegion.rect` is in AppKit global coordinates (bottom-left origin, points).
 `regionDidChange` fires on first placement, on every drag step that changes the
 rect and on each preset; identical regions are skipped.

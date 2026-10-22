@@ -366,3 +366,20 @@ let edgeHandles: [FrameHandle] = [.top, .right, .bottom, .left]
         #expect(result == CGRect(x: 520, y: 449, width: 1280, height: 720))
     }
 }
+
+@Suite struct FrameGeometryResizeStartRectTests {
+    @Test func startRectHangingOffTheEdgeStillKeepsTheMinimumSize() {
+        let display = TestDisplays.main
+        let start = CGRect(x: 1500, y: 0, width: 640, height: 360)
+        let result = FrameGeometry.resize(start, handle: .topRight, by: CGVector(dx: 10, dy: 10), in: display)
+        #expect(result.width >= 640 && result.height >= 360, "\(result)")
+        expectValid(result, in: display)
+    }
+
+    @Test(arguments: TestDisplays.all, FrameHandle.allCases)
+    func fractionalStartRectGivesWholeOrigins(display: CGRect, handle: FrameHandle) {
+        let start = CGRect(x: display.minX + 100.5, y: display.minY + 200.5, width: 960, height: 540)
+        let result = FrameGeometry.resize(start, handle: handle, by: CGVector(dx: 16, dy: 9), in: display)
+        expectValid(result, in: display)
+    }
+}

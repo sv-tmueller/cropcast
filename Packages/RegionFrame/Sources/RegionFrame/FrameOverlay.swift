@@ -55,9 +55,11 @@ public final class FrameOverlay {
         interaction.owner = self
     }
 
-    /// Shows the frame. Without `display` it uses the display the frame is on, else the
-    /// last saved display that is still connected, else the one under the mouse, else the first.
-    /// Batch 2 should always pass the display explicitly.
+    /// Shows the frame on `display`. If that display is not connected, nothing
+    /// happens: the frame state and visibility stay as they were and
+    /// `regionDidChange` does not fire. Without `display` it uses the last saved
+    /// display that is still connected, else the one under the mouse, else the
+    /// first. Batch 2 should always pass the display explicitly.
     public func show(on display: CGDirectDisplayID? = nil) {
         guard let target = resolveDisplay(display) else { return }
         if let current = region, current.displayID == target.id {
@@ -80,6 +82,8 @@ public final class FrameOverlay {
     }
 
     /// Moves the frame to a preset slot of `display` (default: as in `show(on:)`).
+    /// If `display` is not connected, nothing happens: the frame state is
+    /// unchanged and `regionDidChange` does not fire.
     /// Never changes whether the frame is visible.
     public func apply(preset: RegionPreset, on display: CGDirectDisplayID? = nil) {
         guard let target = resolveDisplay(display) else { return }
@@ -107,26 +111,24 @@ public final class FrameOverlay {
         store.save(state)
     }
 
-    /// The requested display if connected, else the one the frame is on, else the
-    /// last saved one that is still connected, else the display under the mouse, else the first.
+    /// Picks the display via `DisplayChoice`: an explicit id must be connected (else
+    /// nil, so the caller does nothing); without one, the last saved display still
+    /// connected, else the display under the mouse, else the first.
     private func resolveDisplay(_ requested: CGDirectDisplayID?) -> (id: CGDirectDisplayID, screen: NSScreen)? {
-        func connected(_ id: CGDirectDisplayID?) -> (id: CGDirectDisplayID, screen: NSScreen)? {
-            guard let id, let screen = DisplayIdentity.screen(for: id) else { return nil }
-            return (id, screen)
+        let screens = NSScreen.screens.compactMap { screen in
+            DisplayIdentity.displayID(of: screen).map { (id: $0, screen: screen) }
         }
-        if let found = connected(requested) { return found }
-        if let found = connected(region?.displayID) { return found }
-        if let lastKey = store.load().lastDisplayKey,
-           let screen = NSScreen.screens.first(where: { screen in
-               DisplayIdentity.displayID(of: screen).map { DisplayIdentity.key(for: $0) == lastKey } ?? false
-           }),
-           let id = DisplayIdentity.displayID(of: screen) {
-            return (id, screen)
-        }
+        let lastKey = store.load().lastDisplayKey
+        let lastSaved = screens.first { lastKey != nil && DisplayIdentity.key(for: $0.id) == lastKey }?.id
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.screens.first
-        guard let screen, let id = DisplayIdentity.displayID(of: screen) else { return nil }
-        return (id, screen)
+        let underMouse = screens.first { $0.screen.frame.contains(mouse) }?.id
+        guard let id = DisplayChoice.pick(
+            requested: requested,
+            connected: screens.map(\.id),
+            lastSaved: lastSaved,
+            underMouse: underMouse
+        ), let found = screens.first(where: { $0.id == id }) else { return nil }
+        return (id, found.screen)
     }
 
     // MARK: - Mouse interaction

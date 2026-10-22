@@ -12,18 +12,18 @@ public enum RegionPreset: CaseIterable, Sendable {
 /// of points, so `width * 9 == height * 16` is an exact check. The frame never
 /// leaves the display it is on (`NSScreen.frame`, not `visibleFrame`, so a
 /// 2560x1440 slot fits on a 1440 pt tall display under the menu bar).
-public enum FrameGeometry {
+enum FrameGeometry {
     /// Smallest allowed `k`: 640x360.
-    public static let minK = 40
+    static let minK = 40
 
     /// Largest `k` for which a 16k x 9k frame fits on `display`.
-    public static func maxK(in display: CGRect) -> Int {
+    static func maxK(in display: CGRect) -> Int {
         max(1, wholeCount(min(display.width / 16, display.height / 9).rounded(.down)))
     }
 
     /// Clamps any rect: snaps its size to the 16:9 steps (keeping the origin),
     /// then shifts it inside `display`.
-    public static func clamp(_ rect: CGRect, to display: CGRect) -> CGRect {
+    static func clamp(_ rect: CGRect, to display: CGRect) -> CGRect {
         let bounds = wholeBounds(of: display)
         let rect = sanitized(rect, in: bounds)
         let k = limitedK(wholeCount((rect.width / 16).rounded()), upTo: maxK(in: bounds))
@@ -31,7 +31,7 @@ public enum FrameGeometry {
     }
 
     /// Moves `rect` by the rounded `delta`, then pushes it back inside `display`.
-    public static func move(_ rect: CGRect, by delta: CGVector, in display: CGRect) -> CGRect {
+    static func move(_ rect: CGRect, by delta: CGVector, in display: CGRect) -> CGRect {
         let rect = sanitized(rect, in: wholeBounds(of: display))
         return clamp(rect.offsetBy(dx: bounded(delta.dx, fallback: 0).rounded(), dy: bounded(delta.dy, fallback: 0).rounded()), to: display)
     }
@@ -42,9 +42,11 @@ public enum FrameGeometry {
     /// decides the size. Edge handles keep the opposite edge fixed, only the drag
     /// along that axis counts, and the other dimension stays centred on the old
     /// centre (shifted, not shrunk, to stay inside the display).
-    public static func resize(_ rect: CGRect, handle: FrameHandle, by delta: CGVector, in display: CGRect) -> CGRect {
+    static func resize(_ rect: CGRect, handle: FrameHandle, by delta: CGVector, in display: CGRect) -> CGRect {
         let bounds = wholeBounds(of: display)
-        let rect = sanitized(rect, in: bounds)
+        // Start from a clamped rect so the 40-step floor and whole origins hold
+        // whatever the caller passes.
+        let rect = clamp(rect, to: display)
         let delta = CGVector(dx: bounded(delta.dx, fallback: 0), dy: bounded(delta.dy, fallback: 0))
         let dir = direction(of: handle)
 
@@ -87,7 +89,7 @@ public enum FrameGeometry {
 
     /// The largest 16:9 frame that fits `display`, centred vertically (rounded
     /// down) and placed at the left, centre or right.
-    public static func preset(_ preset: RegionPreset, in display: CGRect) -> CGRect {
+    static func preset(_ preset: RegionPreset, in display: CGRect) -> CGRect {
         let bounds = wholeBounds(of: display)
         let k = maxK(in: bounds)
         let width = CGFloat(16 * k)
@@ -106,7 +108,7 @@ public enum FrameGeometry {
     /// or an implausible stored rect (non-finite, empty, or not overlapping the
     /// display at all), gives the centre preset; any other stored rect is
     /// re-anchored at the display's current origin and clamped.
-    public static func restore(local: CGRect?, in display: CGRect) -> CGRect {
+    static func restore(local: CGRect?, in display: CGRect) -> CGRect {
         guard let local, isPlausible(local, onDisplayOfSize: display.size) else {
             return preset(.center, in: display)
         }
