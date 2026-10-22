@@ -42,6 +42,10 @@ public final class RegionCapture {
             let content = try await SCShareableContent.excludingDesktopWindows(
                 false, onScreenWindowsOnly: false)
             let display = try display(in: content)
+            // MainActor reentrancy: excludeWindows(_:) can run during the awaits
+            // below, while `stream` is still nil. Remember what this filter
+            // was built from and re-apply it after start if the ids changed.
+            let appliedExtraWindowIDs = extraExcludedWindowIDs
             let filter = makeFilter(display: display, content: content)
             let configuration = settings.makeConfiguration(sourceRect: sourceRect)
 
@@ -54,6 +58,14 @@ public final class RegionCapture {
             try await stream.startCapture()
             self.stream = stream
             self.output = output
+            if extraExcludedWindowIDs != appliedExtraWindowIDs {
+                do {
+                    try await updateContentFilter(of: stream)
+                } catch {
+                    await self.stop()
+                    throw error
+                }
+            }
         } catch {
             throw RegionMirrorError(captureError: error)
         }
@@ -81,10 +93,7 @@ public final class RegionCapture {
         extraExcludedWindowIDs = ids
         guard let stream else { return }
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(
-                false, onScreenWindowsOnly: false)
-            let display = try display(in: content)
-            try await stream.updateContentFilter(makeFilter(display: display, content: content))
+            try await updateContentFilter(of: stream)
         } catch {
             throw RegionMirrorError(captureError: error)
         }
@@ -107,6 +116,13 @@ public final class RegionCapture {
         stream = nil
         output = nil
         onStop?(error)
+    }
+
+    private func updateContentFilter(of stream: SCStream) async throws {
+        let content = try await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: false)
+        let display = try display(in: content)
+        try await stream.updateContentFilter(makeFilter(display: display, content: content))
     }
 
     private func sourceRect(for region: CGRect) throws -> CGRect {
@@ -132,10 +148,9 @@ public final class RegionCapture {
     /// `exceptingWindows`.
     private func makeFilter(display: SCDisplay, content: SCShareableContent) -> SCContentFilter {
         let pid = getpid()
-        let selfApp = content.applications.first { $0.processID == pid }
         let plan = ContentFilterPlan.make(
             ownProcessID: pid,
-            selfAppFound: selfApp != nil,
+            selfApp: content.applications.first { $0.processID == pid },
             windows: content.windows.map {
                 .init(windowID: $0.windowID, processID: $0.owningApplication?.processID ?? -1)
             },
@@ -144,16 +159,13 @@ public final class RegionCapture {
         func windows(_ ids: [CGWindowID]) -> [SCWindow] {
             ids.compactMap { id in content.windows.first { $0.windowID == id } }
         }
-        switch (plan, selfApp) {
-        case (.excludingApp(let exceptingWindows), let selfApp?):
+        switch plan {
+        case .excludingApp(let selfApp, let exceptingWindows):
             return SCContentFilter(
                 display: display, excludingApplications: [selfApp],
                 exceptingWindows: windows(exceptingWindows))
-        case (.excludingWindows(let ids), _):
+        case .excludingWindows(let ids):
             return SCContentFilter(display: display, excludingWindows: windows(ids))
-        case (.excludingApp, nil):
-            // Unreachable: the plan only excludes the app when it was found.
-            return SCContentFilter(display: display, excludingWindows: [])
         }
     }
 }
