@@ -18,6 +18,23 @@ public enum VirtualDisplayError: Error, Equatable, Sendable {
     case placementFailed(CGError)
 }
 
+extension VirtualDisplayError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .apiUnavailable(let detail):
+            return "The virtual display API is unavailable: \(detail)"
+        case .creationFailed(let detail):
+            return "The virtual display could not be created: \(detail)"
+        case .settingsRejected:
+            return "The system rejected the virtual display's mode settings."
+        case .didNotComeOnline:
+            return "The virtual display did not come online in time. A common cause is a host process that does not run the AppKit event loop (NSApplication.run()) for its whole life once it calls start()."
+        case .placementFailed(let error):
+            return "The virtual display could not be placed in the display arrangement (CGError \(error.rawValue))."
+        }
+    }
+}
+
 /// Names of the private classes, injectable so tests can exercise failure
 /// paths without ever creating a real display.
 struct ShimClassNames: Sendable {
@@ -41,12 +58,12 @@ struct ShimClassNames: Sendable {
 /// owns that.
 ///
 /// The process must run the AppKit event loop (`NSApplication.run()`, as the
-/// menu bar app does) while a display exists. Under Swift's async main or a
-/// bare `CFRunLoopRun()`, CoreGraphics stops updating this process's display
-/// list after the placement transaction: `stop()` still removes the display
+/// menu bar app does) for the rest of its life once it calls `start()`, not
+/// only while a display exists. Under Swift's async main or a bare
+/// `CFRunLoopRun()`, CoreGraphics stops updating this process's display list
+/// after the placement transaction: `stop()` still removes the display
 /// system-wide, but `CGGetActiveDisplayList` in this process keeps listing it,
-/// so `waitUntilOnline` of the next `start()` times out with
-/// `.didNotComeOnline`.
+/// so the next `start()` throws `.didNotComeOnline`.
 @MainActor
 public final class VirtualDisplay {
     static let name = "CropCast"
