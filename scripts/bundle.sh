@@ -18,10 +18,12 @@ swift build -c release --product CropCast
 BIN_DIR="$(swift build -c release --show-bin-path)"
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/CropCast" "$APP/Contents/MacOS/CropCast"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist"
+# Copied before codesign so the icon is part of the sealed resources.
+cp Support/AppIcon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 if [[ -n "${CROPCAST_SIGN_IDENTITY:-}" ]]; then
   IDENTITY="$CROPCAST_SIGN_IDENTITY"
