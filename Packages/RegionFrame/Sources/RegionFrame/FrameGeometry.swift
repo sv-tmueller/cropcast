@@ -18,20 +18,22 @@ public enum FrameGeometry {
 
     /// Largest `k` for which a 16k x 9k frame fits on `display`.
     public static func maxK(in display: CGRect) -> Int {
-        max(1, Int(min(display.width / 16, display.height / 9).rounded(.down)))
+        max(1, wholeCount(min(display.width / 16, display.height / 9).rounded(.down)))
     }
 
     /// Clamps any rect: snaps its size to the 16:9 steps (keeping the origin),
     /// then shifts it inside `display`.
     public static func clamp(_ rect: CGRect, to display: CGRect) -> CGRect {
         let bounds = wholeBounds(of: display)
-        let k = limitedK(Int((rect.width / 16).rounded()), upTo: maxK(in: bounds))
+        let rect = sanitized(rect, in: bounds)
+        let k = limitedK(wholeCount((rect.width / 16).rounded()), upTo: maxK(in: bounds))
         return fitted(origin: CGPoint(x: rect.minX.rounded(), y: rect.minY.rounded()), k: k, in: bounds)
     }
 
     /// Moves `rect` by the rounded `delta`, then pushes it back inside `display`.
     public static func move(_ rect: CGRect, by delta: CGVector, in display: CGRect) -> CGRect {
-        clamp(rect.offsetBy(dx: delta.dx.rounded(), dy: delta.dy.rounded()), to: display)
+        let rect = sanitized(rect, in: wholeBounds(of: display))
+        return clamp(rect.offsetBy(dx: bounded(delta.dx, fallback: 0).rounded(), dy: bounded(delta.dy, fallback: 0).rounded()), to: display)
     }
 
     /// Resizes `rect` by dragging `handle` by the *total* `delta` since the drag began.
@@ -42,26 +44,29 @@ public enum FrameGeometry {
     /// centre (shifted, not shrunk, to stay inside the display).
     public static func resize(_ rect: CGRect, handle: FrameHandle, by delta: CGVector, in display: CGRect) -> CGRect {
         let bounds = wholeBounds(of: display)
+        let rect = sanitized(rect, in: bounds)
+        let delta = CGVector(dx: bounded(delta.dx, fallback: 0), dy: bounded(delta.dy, fallback: 0))
         let dir = direction(of: handle)
 
-        // Room between the fixed side and the display edge on each axis.
-        let roomW = dir.x > 0 ? bounds.maxX - rect.minX : rect.maxX - bounds.minX
-        let roomH = dir.y > 0 ? bounds.maxY - rect.minY : rect.maxY - bounds.minY
+        // Room between the fixed side and the display edge on each axis (never
+        // more than the display itself, even if `rect` starts outside it).
+        let roomW = min(dir.x > 0 ? bounds.maxX - rect.minX : rect.maxX - bounds.minX, bounds.width)
+        let roomH = min(dir.y > 0 ? bounds.maxY - rect.minY : rect.maxY - bounds.minY, bounds.height)
 
         let rawK: Int
         let kMax: Int
         if dir.x != 0 && dir.y != 0 {
             let widthWins = abs(delta.dx) * 9 >= abs(delta.dy) * 16
             rawK = widthWins
-                ? Int(((rect.width + dir.x * delta.dx) / 16).rounded())
-                : Int(((rect.height + dir.y * delta.dy) / 9).rounded())
-            kMax = Int(min(roomW / 16, roomH / 9).rounded(.down))
+                ? wholeCount(((rect.width + dir.x * delta.dx) / 16).rounded())
+                : wholeCount(((rect.height + dir.y * delta.dy) / 9).rounded())
+            kMax = wholeCount(min(roomW / 16, roomH / 9).rounded(.down))
         } else if dir.x != 0 {
-            rawK = Int(((rect.width + dir.x * delta.dx) / 16).rounded())
-            kMax = Int(min(roomW / 16, bounds.height / 9).rounded(.down))
+            rawK = wholeCount(((rect.width + dir.x * delta.dx) / 16).rounded())
+            kMax = wholeCount(min(roomW / 16, bounds.height / 9).rounded(.down))
         } else {
-            rawK = Int(((rect.height + dir.y * delta.dy) / 9).rounded())
-            kMax = Int(min(roomH / 9, bounds.width / 16).rounded(.down))
+            rawK = wholeCount(((rect.height + dir.y * delta.dy) / 9).rounded())
+            kMax = wholeCount(min(roomH / 9, bounds.width / 16).rounded(.down))
         }
         let k = limitedK(rawK, upTo: kMax)
         let width = CGFloat(16 * k)
@@ -97,15 +102,54 @@ public enum FrameGeometry {
         return fitted(origin: CGPoint(x: x, y: y), k: k, in: bounds)
     }
 
-    /// Restores a rect stored relative to the display origin. Nothing stored
-    /// gives the centre preset; a stored rect is re-anchored at the display's
-    /// current origin and clamped.
+    /// Restores a rect stored relative to the display origin. Nothing stored,
+    /// or an implausible stored rect (non-finite, empty, or not overlapping the
+    /// display at all), gives the centre preset; any other stored rect is
+    /// re-anchored at the display's current origin and clamped.
     public static func restore(local: CGRect?, in display: CGRect) -> CGRect {
-        guard let local else { return preset(.center, in: display) }
+        guard let local, isPlausible(local, onDisplayOfSize: display.size) else {
+            return preset(.center, in: display)
+        }
         return clamp(local.offsetBy(dx: display.minX, dy: display.minY), to: display)
     }
 
     // MARK: - Helpers
+
+    /// Largest magnitude any input coordinate or delta may have. Far above any
+    /// real display, far below where `Int` conversion or arithmetic misbehaves.
+    private static let limit: CGFloat = 1e9
+
+    /// `value` limited to `-limit...limit`; NaN becomes `fallback`.
+    private static func bounded(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
+        value.isNaN ? fallback : min(max(value, -limit), limit)
+    }
+
+    /// A whole number from an already-rounded value; never traps (NaN is 0,
+    /// huge values saturate at `limit`).
+    private static func wholeCount(_ value: CGFloat) -> Int {
+        Int(bounded(value, fallback: 0))
+    }
+
+    /// `rect` with finite, bounded numbers: a NaN origin becomes the display's
+    /// origin and a NaN size becomes zero (which the floor then lifts).
+    private static func sanitized(_ rect: CGRect, in bounds: CGRect) -> CGRect {
+        CGRect(
+            x: bounded(rect.minX, fallback: bounds.minX),
+            y: bounded(rect.minY, fallback: bounds.minY),
+            width: bounded(rect.width, fallback: 0),
+            height: bounded(rect.height, fallback: 0)
+        )
+    }
+
+    /// A stored display-local rect is plausible when it is finite, has a
+    /// positive size and overlaps the display. Huge but finite sizes are fine;
+    /// `clamp` limits them.
+    private static func isPlausible(_ local: CGRect, onDisplayOfSize size: CGSize) -> Bool {
+        let values = [local.origin.x, local.origin.y, local.size.width, local.size.height]
+        guard values.allSatisfy({ $0.isFinite }), local.size.width > 0, local.size.height > 0 else { return false }
+        let overlap = local.intersection(CGRect(origin: .zero, size: size))
+        return !overlap.isNull && overlap.width > 0 && overlap.height > 0
+    }
 
     private static func direction(of handle: FrameHandle) -> (x: CGFloat, y: CGFloat) {
         switch handle {
