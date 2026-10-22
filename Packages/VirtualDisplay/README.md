@@ -20,20 +20,21 @@ until it shows up in `CGGetActiveDisplayList`, then moves it into place. On any
 failure nothing is left behind.
 
 `VirtualDisplayError`: `apiUnavailable(String)`, `creationFailed(String)`,
-`settingsRejected`, `didNotComeOnline`, `placementFailed(CGError)`.
+`settingsRejected`, `didNotComeOnline`, `placementFailed(CGError)`. It conforms
+to `LocalizedError`, so `error.localizedDescription` is a readable sentence for
+each case.
 
 **Requires the AppKit event loop.** The process must run `NSApplication.run()`
-(any real app does) while a display exists. Under Swift's async main
-(top-level `await`) or a bare `CFRunLoopRun()`, CoreGraphics stops refreshing
-this process's display list after the placement transaction. `stop()` still
-removes the display system-wide (other processes and `system_profiler` see it
-gone within about a second), but `CGGetActiveDisplayList` in the calling
-process keeps listing it until exit, and the next `start()` throws
-`.didNotComeOnline`. This was the cause of the "display stays after `stop()`"
-bug (issue #3 test round 2): the display itself was removed, the process's own
-view of it was stale. It showed up for display identities the OS had not seen
-before and for a second start in the same process; `vdisplay-demo` now runs
-`NSApplication.run()` and passes `--cycles 5` with new and remembered serials.
+(any real app does) for the rest of its life once it calls `start()`, not only
+while a display exists. Under Swift's async main (top-level `await`) or a bare
+`CFRunLoopRun()`, CoreGraphics stops refreshing this process's display list
+after the placement transaction. `stop()` still removes the display system-wide
+(other processes and `system_profiler` see it gone within about a second), but
+`CGGetActiveDisplayList` in the calling process keeps listing it until exit, and
+the next `start()` throws `.didNotComeOnline`. This shows up for new display
+identities and for a second start in the same process. `vdisplay-demo` runs
+`NSApplication.run()` for this reason; `--cycles N` checks repeated start/stop
+in one process with the package's fixed serial.
 
 Not handled here: the private `terminationHandler`, sleep/wake and display
 reconfiguration. The integration batch owns that.
@@ -89,7 +90,3 @@ Run from a GUI terminal session, not over SSH.
       named "Screen N" rather than "CropCast").
 - [ ] After the demo exits, the display is gone from System Settings > Displays.
 - [ ] Ctrl-C during the run also removes the display.
-
-The earlier "first run leaves the display in place" flake is most likely
-the event-loop problem above (a new display identity made the process's display
-list go stale); it has not recurred since the demo runs `NSApplication.run()`.

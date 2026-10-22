@@ -1,6 +1,6 @@
 import Testing
 
-@testable import VirtualDisplayDemoSupport
+import VirtualDisplayDemoSupport
 
 struct DemoOptionsTests {
     @Test func defaultsToOneCycleOfTenSeconds() {
