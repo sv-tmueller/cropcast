@@ -1,15 +1,16 @@
 import AppKit
 import CropCastCore
 
-/// Owns the `NSStatusItem` and the app state. The menu is rebuilt from
+/// Owns the `NSStatusItem` and renders the menu. The menu is rebuilt from
 /// `AppState.menuEntries()` every time it opens, so labels are always current.
 @MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
-    private(set) var state = AppState()
-    private let statusItem: NSStatusItem
+    let sharing: SharingController
+    let statusItem: NSStatusItem
     private let menu = NSMenu()
 
-    override init() {
+    init(sharing: SharingController) {
+        self.sharing = sharing
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         if let button = statusItem.button {
@@ -28,12 +29,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             NSApp.terminate(nil)
             return
         }
-        state.apply(action)
+        sharing.apply(action)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        for entry in state.menuEntries() {
+        for entry in sharing.state.menuEntries() {
             menu.addItem(makeItem(entry))
         }
     }
@@ -47,7 +48,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 title: title, action: #selector(menuItemClicked(_:)),
                 keyEquivalent: action == .quit ? "q" : "")
             item.target = self
-            item.representedObject = ActionBox(action)
+            item.representedObject = action
             return item
         case let .submenu(title, entries):
             let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
@@ -61,12 +62,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc private func menuItemClicked(_ sender: NSMenuItem) {
-        guard let box = sender.representedObject as? ActionBox else { return }
-        apply(box.action)
+        guard let action = sender.representedObject as? MenuAction else { return }
+        apply(action)
     }
-}
-
-private final class ActionBox: NSObject {
-    let action: MenuAction
-    init(_ action: MenuAction) { self.action = action }
 }
