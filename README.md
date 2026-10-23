@@ -22,13 +22,33 @@ Status: in development. Design: `docs/superpowers/specs/2026-10-22-cropcast-desi
     make clean   # remove build/
     open build/CropCast.app
 
-`swift run CropCast` also works for a quick check; it runs without a Dock icon
-but is not a signed bundle, so use the `.app` for anything involving
-permissions. The menu bar icon (dashed rectangle) offers Start/Stop Sharing,
+`swift run CropCast` also works for a quick check; it is not a signed bundle,
+so use the `.app` for anything involving permissions, and Launch at login is
+unavailable there. CropCast shows a Dock icon by default (see "Settings"
+below). The menu bar icon (dashed rectangle) offers Start/Stop Sharing,
 Show/Hide Frame, a Display submenu (the connected displays, one checked), a
-Presets submenu (Left, Center, Right) and Quit. The global
-hotkey Control-Option-Command-F triggers the same action as Show/Hide Frame.
-For how to share a region in Teams, see "Using CropCast with Teams" below.
+Presets submenu (Left, Center, Right), Settings… and Quit. The global hotkey
+Control-Option-Command-F triggers the same action as Show/Hide Frame. For how
+to share a region in Teams, see "Using CropCast with Teams" below.
+
+## Settings
+
+Open the Settings window from the menu bar menu (Settings…), the app menu
+(Command-comma), or a click on the Dock icon. Opening it again brings the same
+window to the front.
+
+- **Show in Dock** (on by default): shows or hides the Dock icon at once, no
+  relaunch needed. The menu bar icon stays either way. With the Dock icon
+  shown, the app menu holds Settings… and Quit CropCast.
+- **Launch at login**: starts CropCast when you log in. It uses the macOS login
+  item of the running app, so it works only from an installed `CropCast.app`
+  (use `make install`); under `swift run` the switch is disabled. If macOS asks
+  for approval, the row offers "Open Login Items…". The switch always shows the
+  real system state, so a change made in System Settings > General > Login
+  Items appears when the Settings window regains focus.
+
+The Settings window is one of CropCast's own windows, so it is never captured
+or shared.
 
 ## Stable code signing
 
@@ -142,7 +162,8 @@ the stale grant by hand and grant it again:
 
 ### Sharing a region
 
-1. Open CropCast (menu bar icon, no Dock icon) and choose **Start Sharing**.
+1. Open CropCast (menu bar icon, plus a Dock icon unless you turned it off in
+   Settings) and choose **Start Sharing**.
    The item reads "Starting…" while the session comes up, then "Stop Sharing".
    Start creates the CropCast virtual display, opens a full-screen mirror of
    the region on it, shows the frame on your source display and starts
@@ -190,13 +211,14 @@ the stale grant by hand and grant it again:
 - **Not handled yet:** sleep/wake and a display connecting, disconnecting or
   changing mode. If a session misbehaves after one of these, choose Stop
   Sharing and start again.
-- **Missing feature:** launch at login. CropCast does not start by itself, so
-  open it after logging in.
+- **Launch at login is greyed out:** it needs the installed `CropCast.app`
+  (`make install`); it is unavailable under `swift run` and for a copy that
+  macOS cannot find as an app.
 
 ### Teams test checklist
 
 - [ ] `make install` puts CropCast.app in place and
-      `open /Applications/CropCast.app` launches it (menu bar icon, no Dock
+      `open /Applications/CropCast.app` launches it (menu bar icon and Dock
       icon).
 - [ ] Start Sharing without Screen Recording permission shows the permission
       alert and starts nothing; "Open System Settings" opens the Screen
@@ -240,14 +262,37 @@ the stale grant by hand and grant it again:
 - [ ] `make app` succeeds; `codesign -dv build/CropCast.app` shows
       `Identifier=com.github.sv-tmueller.cropcast`.
 - [ ] `codesign --verify --strict build/CropCast.app` exits 0.
-- [ ] `open build/CropCast.app`: an icon appears in the menu bar and there is
-      no Dock icon and no app window.
+- [ ] `open build/CropCast.app` (first run: `defaults delete
+      com.github.sv-tmueller.cropcast CropCast.showInDock`): icons appear in
+      the menu bar and the Dock, and no app window opens. The app menu holds
+      Settings… (Command-comma) and Quit CropCast (Command-Q).
 - [ ] After `make install`, Finder shows the CropCast icon (not the generic app
       icon) for `/Applications/CropCast.app`; if stale, `touch` the app and
       `killall Finder`.
 - [ ] Opening the menu shows Start Sharing, Show Frame, Display (the connected
-      displays), Presets (Left, Center, Right) and Quit CropCast.
+      displays), Presets (Left, Center, Right), Settings… and Quit CropCast.
 - [ ] Pressing Control-Option-Command-F changes the menu label between
       Show Frame and Hide Frame (check by reopening the menu).
 - [ ] Clicking Show Frame / Start Sharing flips the label on next open.
 - [ ] Quit CropCast (or Command-Q with the menu open) terminates the app.
+
+## Manual verification (Settings)
+
+Run these from the `/Applications` copy after `make install`, because launch at
+login registers the running bundle's path.
+
+- [ ] Settings… in the menu bar menu opens the window; choosing it again, a
+      Dock icon click, or Command-comma brings the same window to the front
+      and never opens a second one, also while sharing.
+- [ ] During a share, Settings opens on a physical display (never on the
+      CropCast virtual display) and Teams viewers do not see it.
+- [ ] Show in Dock off: the Dock icon goes at once, Settings stays open and in
+      front, and the menu bar menu still works. After a relaunch there is
+      still no Dock icon, and Settings… still opens the window in front.
+- [ ] Show in Dock on again: the Dock icon appears at once.
+- [ ] Launch at login matches System Settings > General > Login Items: on adds
+      CropCast there, off removes it, and a change made in System Settings
+      shows when Settings regains focus. After logging out and in with it on,
+      CropCast is running. Under `swift run` the switch is disabled with a note.
+- [ ] Quit CropCast from the app menu while sharing tears the session down:
+      `system_profiler SPDisplaysDataType | grep -c CropCast` prints 0.

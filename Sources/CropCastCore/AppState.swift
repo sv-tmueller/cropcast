@@ -11,6 +11,16 @@ public enum MenuAction: Sendable, Equatable {
     /// Choose the source display by its stable key (the display UUID string).
     case selectDisplay(key: String)
     case quit
+    case openSettings
+
+    /// Menu key equivalent (Command is implied).
+    public var keyEquivalent: String {
+        switch self {
+        case .quit: return "q"
+        case .openSettings: return ","
+        case .toggleSharing, .toggleFrame, .selectPreset, .selectDisplay: return ""
+        }
+    }
 }
 
 /// Pure description of one menu row, rendered to `NSMenu` by the app glue.
@@ -44,6 +54,7 @@ public struct AppState: Sendable, Equatable {
     /// Applies a user command and returns what the glue has to do about the
     /// sharing session. `.quit` does not change state: the glue terminates the
     /// app, and `applicationShouldTerminate` reports it as `.quitRequested`.
+    /// `.openSettings` does not either: the glue opens the window.
     @discardableResult
     public mutating func apply(_ action: MenuAction) -> [SessionEffect] {
         switch action {
@@ -55,7 +66,7 @@ public struct AppState: Sendable, Equatable {
             lastPreset = preset
         case .selectDisplay(let key):
             if canChooseDisplay { chosenDisplayKey = key }
-        case .quit:
+        case .quit, .openSettings:
             break
         }
         return []
@@ -94,6 +105,7 @@ public struct AppState: Sendable, Equatable {
                 .item(title: "Right", action: .selectPreset(.right)),
             ]),
             .separator,
+            .item(title: "Settings…", action: .openSettings),
             .item(title: "Quit CropCast", action: .quit),
         ]
     }

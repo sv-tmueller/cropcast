@@ -118,6 +118,7 @@ struct AppStateTests {
                 .item(title: "Right", action: .selectPreset(.right)),
             ]),
             .separator,
+            .item(title: "Settings…", action: .openSettings),
             .item(title: "Quit CropCast", action: .quit),
         ])
     }
@@ -250,6 +251,40 @@ struct AppStateTests {
         state.apply(.toggleSharing)
         state.handle(.stopCompleted)
         #expect(state.chosenDisplayKey == "key2")
+    }
+
+    @Test func openSettingsDoesNotChangeState() {
+        var state = AppState()
+        state.apply(.toggleFrame)
+        let before = state
+        #expect(state.apply(.openSettings) == [])
+        #expect(state == before)
+    }
+
+    @Test(arguments: [SessionPhase.idle, .starting, .sharing, .stopping])
+    func settingsIsListedInEveryPhase(phase: SessionPhase) {
+        var state = AppState()
+        switch phase {
+        case .idle: break
+        case .starting: state.apply(.toggleSharing)
+        case .sharing:
+            state.apply(.toggleSharing)
+            state.handle(.startSucceeded)
+        case .stopping:
+            state.apply(.toggleSharing)
+            state.handle(.startSucceeded)
+            state.apply(.toggleSharing)
+        }
+        #expect(state.phase == phase)
+        #expect(titles(state).contains("Settings…"))
+    }
+
+    @Test func keyEquivalents() {
+        #expect(MenuAction.quit.keyEquivalent == "q")
+        #expect(MenuAction.openSettings.keyEquivalent == ",")
+        #expect(MenuAction.toggleSharing.keyEquivalent == "")
+        #expect(MenuAction.toggleFrame.keyEquivalent == "")
+        #expect(MenuAction.selectPreset(.left).keyEquivalent == "")
     }
 }
 

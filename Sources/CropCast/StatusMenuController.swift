@@ -8,6 +8,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     let sharing: SharingController
     let statusItem: NSStatusItem
     private let menu = NSMenu()
+    /// Set by the app delegate once the Settings window exists.
+    var onOpenSettings: (() -> Void)?
 
     init(sharing: SharingController) {
         self.sharing = sharing
@@ -31,6 +33,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             NSApp.terminate(nil)
             return
         }
+        if action == .openSettings {
+            onOpenSettings?()
+            return
+        }
         sharing.apply(action)
     }
 
@@ -48,7 +54,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         case let .item(title, action):
             let item = NSMenuItem(
                 title: title, action: #selector(menuItemClicked(_:)),
-                keyEquivalent: action == .quit ? "q" : "")
+                keyEquivalent: action.keyEquivalent)
             item.target = self
             item.representedObject = action
             return item

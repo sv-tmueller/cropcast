@@ -11,7 +11,8 @@ any other screen.
 
 ## Solution
 
-A macOS menu bar app (no Dock icon) that:
+A macOS menu bar app (Dock icon optional, on by default; see the
+2026-10-23 settings design) that:
 
 1. Creates a virtual display named "CropCast" (2560x1440, 60 Hz, non-HiDPI)
    via the private `CGVirtualDisplay` API. Teams lists it as a screen.
