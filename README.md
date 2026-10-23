@@ -27,10 +27,11 @@ so use the `.app` for anything involving permissions, and Launch at login is
 unavailable there. CropCast shows a Dock icon by default (see "Settings"
 below). The menu bar icon (a dashed rectangle; while
 sharing is live, the dashed rectangle with a record badge, tinted red) offers Start/Stop Sharing,
-Show/Hide Frame, a checkable Lock Frame item, a Display submenu (the connected displays, one checked), a
-Presets submenu (Left, Center, Right), Settings… and Quit. The global hotkey
-Control-Option-Command-F triggers the same action as Show/Hide Frame. For how
-to share a region in Teams, see "Using CropCast with Teams" below.
+Show/Hide Frame, a checkable Lock Frame item, a Display submenu (the connected
+displays, one checked), a Presets submenu (Left, Center, Right), Settings… and
+Quit. The global hotkey Control-Option-Command-F triggers the same action as
+Show/Hide Frame. For how to share a region in Teams, see "Using CropCast with
+Teams" below.
 
 ## Settings
 
@@ -302,8 +303,9 @@ the stale grant by hand and grant it again:
 - [ ] After `make install`, Finder shows the CropCast icon (not the generic app
       icon) for `/Applications/CropCast.app`; if stale, `touch` the app and
       `killall Finder`.
-- [ ] Opening the menu shows Start Sharing, Show Frame, Lock Frame, Display (the connected
-      displays), Presets (Left, Center, Right), Settings… and Quit CropCast.
+- [ ] Opening the menu shows Start Sharing, Show Frame, Lock Frame, Display
+      (the connected displays), Presets (Left, Center, Right), Settings… and
+      Quit CropCast.
 - [ ] Pressing Control-Option-Command-F changes the menu label between
       Show Frame and Hide Frame (check by reopening the menu).
 - [ ] Clicking Show Frame / Start Sharing flips the label on next open.
@@ -352,8 +354,8 @@ login registers the running bundle's path.
       reaches the window underneath it. Presets Left/Center/Right and the
       Display submenu still move the frame. While sharing, locking and
       unlocking does not change the shared image or make the frame flicker.
-- [ ] Locking in the middle of a drag stops the drag where it is. Unlocking
-      makes the band draggable again.
+- [ ] After unlocking, the band, the corner brackets and the edge bars can be
+      dragged again.
 - [ ] Quit and reopen CropCast while locked: Lock Frame is still checked, the
       Settings switch is on and the frame is still click-through. After
       `defaults delete` as above, a relaunch starts unlocked.

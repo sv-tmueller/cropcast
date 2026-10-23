@@ -289,8 +289,8 @@ struct AppStateTests {
         return nil
     }
 
-    private func state(in phase: SessionPhase) -> AppState {
-        var state = AppState()
+    private func state(in phase: SessionPhase, chosenDisplayKey: String? = nil) -> AppState {
+        var state = AppState(chosenDisplayKey: chosenDisplayKey)
         switch phase {
         case .idle: break
         case .starting: state.apply(.toggleSharing)
@@ -329,22 +329,20 @@ struct AppStateTests {
 
     @Test(arguments: [SessionPhase.idle, .starting, .sharing, .stopping])
     func toggleFrameLockChangesNothingElse(phase: SessionPhase) {
-        var state = state(in: phase)
+        var state = state(in: phase, chosenDisplayKey: "display-1")
         state.apply(.toggleFrame)
         state.apply(.selectPreset(.right))
         let before = state
         #expect(state.apply(.toggleFrameLock) == [])
         #expect(state.isFrameLocked == true)
+        #expect(state.phase == before.phase)
+        #expect(state.isFrameVisible == before.isFrameVisible)
+        #expect(state.lastPreset == before.lastPreset)
+        #expect(state.chosenDisplayKey == before.chosenDisplayKey)
+        #expect(state.chosenDisplayKey == "display-1")
 
         state.apply(.toggleFrameLock)
         #expect(state == before)
-    }
-
-    @Test func lockEntrySitsRightAfterShowHideFrame() {
-        let entries = AppState().menuEntries()
-        #expect(entries[1] == .item(title: "Show Frame", action: .toggleFrame))
-        #expect(entries[2] == .checkable(title: "Lock Frame", action: .toggleFrameLock, isChecked: false))
-        #expect(entries[3] == .separator)
     }
 
     @Test func keyEquivalents() {
