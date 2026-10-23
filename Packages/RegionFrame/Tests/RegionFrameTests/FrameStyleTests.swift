@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import RegionFrame
@@ -9,9 +10,7 @@ import Testing
     }
 
     @Test func everyStyleHasItsOwnTint() {
-        let tints = FrameStyle.allCases.map(\.tint)
-        #expect(tints.count == 2)
-        #expect(tints[0] != tints[1])
+        #expect(Set(FrameStyle.allCases.map(\.tint)).count == FrameStyle.allCases.count)
     }
 
     /// Never calls `show()`, so no panel is ordered on screen.
@@ -32,6 +31,7 @@ import Testing
         #expect(overlay.style == .live)
         #expect(overlay.panels.allSatisfy { $0.borderView.style == .live })
         #expect(!overlay.isVisible)
+        #expect(overlay.panels.allSatisfy { !$0.isVisible })
         #expect(overlay.region == nil)
         #expect(overlay.windowNumbers == numbers)
         #expect(changes == 0)
@@ -40,5 +40,24 @@ import Testing
         overlay.style = .idle
         #expect(overlay.panels.allSatisfy { $0.borderView.style == .idle })
         #expect(overlay.windowNumbers == numbers)
+    }
+
+    /// `hide()` and `apply(preset:on:)` never order a panel front (only `show()`
+    /// does), so this stays off the screen.
+    @MainActor
+    @Test func styleSurvivesHideAndPresetWithoutShowingPanels() {
+        let suite = TestSuite()
+        defer { suite.cleanUp() }
+        let overlay = FrameOverlay(defaults: suite.defaults)
+        overlay.style = .live
+
+        overlay.hide()
+        #expect(overlay.style == .live)
+
+        overlay.apply(preset: .center, on: CGMainDisplayID())
+        #expect(overlay.style == .live)
+        #expect(overlay.panels.allSatisfy { $0.borderView.style == .live })
+        #expect(!overlay.isVisible)
+        #expect(overlay.panels.allSatisfy { !$0.isVisible })
     }
 }

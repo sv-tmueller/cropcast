@@ -25,8 +25,8 @@ Status: in development. Design: `docs/superpowers/specs/2026-10-22-cropcast-desi
 `swift run CropCast` also works for a quick check; it is not a signed bundle,
 so use the `.app` for anything involving permissions, and Launch at login is
 unavailable there. CropCast shows a Dock icon by default (see "Settings"
-below). The menu bar icon (a dashed rectangle, with a red record badge while
-sharing is live) offers Start/Stop Sharing,
+below). The menu bar icon (a dashed rectangle; while
+sharing is live, the dashed rectangle with a record badge, tinted red) offers Start/Stop Sharing,
 Show/Hide Frame, a Display submenu (the connected displays, one checked), a
 Presets submenu (Left, Center, Right), Settings… and Quit. The global hotkey
 Control-Option-Command-F triggers the same action as Show/Hide Frame. For how
@@ -167,8 +167,8 @@ the stale grant by hand and grant it again:
    Settings) and choose **Start Sharing**.
    The item reads "Starting…" while the session comes up, then "Stop Sharing".
    From "Starting…" until the session has fully stopped, the frame turns red and
-   the menu bar icon shows a red record badge; both are back to normal (blue
-   frame, plain dashed rectangle) when idle, also after a failed Start. Red
+   the menu bar icon shows the dashed rectangle with a record badge, tinted red;
+   both are back to normal (blue frame, plain dashed rectangle) when idle, also after a failed Start. Red
    means the CropCast session is live: macOS gives no way to tell whether Teams
    is actually viewing it.
    Start creates the CropCast virtual display, opens a full-screen mirror of
@@ -291,8 +291,9 @@ the stale grant by hand and grant it again:
 - [ ] Clicking Show Frame / Start Sharing flips the label on next open.
 - [ ] Quit CropCast (or Command-Q with the menu open) terminates the app.
 - [ ] While sharing is live ("Starting…" to "Stopping…"), the menu bar shows
-      the dashed rectangle with a red record badge; when idle, the plain
-      dashed rectangle. Both are readable in light and dark mode and while the
+      the dashed rectangle with a record badge, tinted red; when idle, the
+      plain dashed rectangle. If the menu bar ignores the tint, the badge shape
+      alone shows the state. Both are readable in light and dark mode and while the
       menu is open.
 
 ## Manual verification (Settings)

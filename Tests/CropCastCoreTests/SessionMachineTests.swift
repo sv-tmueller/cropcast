@@ -150,24 +150,24 @@ struct SessionMachineTests {
         var m = SessionMachine()
         #expect(m.phase.isLive == false)
 
-        m.handle(.toggleSharing)
+        _ = m.handle(.toggleSharing)
         #expect(m.phase.isLive == true)
-        m.handle(.startFailed)
+        _ = m.handle(.startFailed)
         #expect(m.phase.isLive == false)
 
-        m.handle(.toggleSharing)
+        _ = m.handle(.toggleSharing)
         #expect(m.phase.isLive == true)
-        m.handle(.startCancelled)
+        _ = m.handle(.startCancelled)
         #expect(m.phase.isLive == false)
 
-        m.handle(.toggleSharing)
-        m.handle(.startSucceeded)
+        _ = m.handle(.toggleSharing)
+        _ = m.handle(.startSucceeded)
         #expect(m.phase == .sharing)
         #expect(m.phase.isLive == true)
-        m.handle(.quitRequested)
+        _ = m.handle(.quitRequested)
         #expect(m.phase == .stopping)
         #expect(m.phase.isLive == true)
-        m.handle(.stopCompleted)
+        _ = m.handle(.stopCompleted)
         #expect(m.phase.isLive == false)
     }
 }
