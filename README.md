@@ -81,14 +81,26 @@ re-grant note; see "Screen Recording permission" below.
 CropCast copies a region of your screen onto a virtual display, and macOS only
 allows that after you grant Screen Recording access. The first time you choose
 Start Sharing without it, CropCast shows "CropCast needs Screen Recording
-permission" and starts nothing. Choose "Open System Settings" (Cancel does
-nothing), switch CropCast on under Privacy & Security > Screen & System Audio
-Recording, then reopen CropCast and choose Start Sharing again.
+permission" and starts nothing. The alert has three buttons:
+
+- **Open System Settings** requests access and opens the Screen Recording pane.
+  Switch CropCast on under Privacy & Security > Screen & System Audio
+  Recording, then reopen CropCast and choose Start Sharing again.
+- **Reset & Grant Again** is for a stale grant: System Settings already shows
+  CropCast switched on, but Start still shows the alert (typical after an
+  ad-hoc rebuild). It runs `tccutil reset ScreenCapture` for CropCast's bundle
+  identifier, then requests access and opens the pane. Switch CropCast on, then
+  Quit & Reopen when macOS offers it, and choose Start Sharing again. If the
+  reset fails (for example when CropCast runs unbundled), an alert "Could not
+  reset Screen Recording permission" gives the cause and the manual command,
+  and nothing else happens.
+- **Cancel** does nothing.
 
 macOS ties the grant to the app's code signature. An ad-hoc signature changes
 on every build, so the grant is lost after each rebuild or reinstall. To keep
 it, sign with a stable certificate (see "Stable code signing" above). After a
-re-sign or an ad-hoc build, reset the stale grant and grant it again:
+re-sign or an ad-hoc build, choose Reset & Grant Again in the alert, or reset
+the stale grant by hand and grant it again:
 
     tccutil reset ScreenCapture com.github.sv-tmueller.cropcast
 
@@ -119,8 +131,9 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
 
 - **No permission:** the alert appears on every Start until Screen Recording
   is granted. Grant it in System Settings, reopen CropCast and start again. If
-  it was working before a rebuild or reinstall, the signature changed; use the
-  `tccutil reset` command above, or sign with a stable certificate.
+  it was working before a rebuild or reinstall, the signature changed; choose
+  Reset & Grant Again in the alert (or run the `tccutil reset` command above),
+  or sign with a stable certificate.
 - **The screen is not listed in Teams:** the CropCast screen exists only
   during a session, so look for it once the menu reads "Stop Sharing". Wait
   out "Starting…", check that no "Sharing did not start" alert appeared, then
@@ -154,6 +167,10 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
 - [ ] Start Sharing without Screen Recording permission shows the permission
       alert and starts nothing; "Open System Settings" opens the Screen
       Recording pane.
+- [ ] With a stale grant (Settings shows CropCast on, Start still shows the
+      alert), "Reset & Grant Again" shows the macOS prompt and opens the pane
+      with CropCast off; after switching it on and reopening CropCast, Start
+      Sharing works without Terminal. "Cancel" does nothing.
 - [ ] After granting and reopening CropCast, Start Sharing reads "Starting…",
       then "Stop Sharing", and the frame appears on the source display.
 - [ ] Teams' Share picker lists the CropCast screen (possibly "Screen N");
