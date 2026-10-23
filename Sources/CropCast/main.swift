@@ -4,6 +4,8 @@ import CropCastCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var menuController: StatusMenuController?
+    private var settings: SettingsWindowController?
+    private let dockIcon = DockIcon()
     private var hotKey: GlobalHotKey?
     #if DEBUG
     private var selfTest: SelfTest?
@@ -19,9 +21,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         let controller = StatusMenuController(sharing: SharingController(deps: .live()))
         menuController = controller
+        let settings = SettingsWindowController()
+        self.settings = settings
+        controller.onOpenSettings = { [weak settings] in settings?.show() }
+        dockIcon.onOpenSettings = { [weak settings] in settings?.show() }
+        dockIcon.installMainMenu()
         hotKey = GlobalHotKey { [weak controller] in
             controller?.apply(.toggleFrame)
         }
+    }
+
+    /// A Dock icon click opens Settings. `hasVisibleWindows` is ignored: during a
+    /// share the frame panels and the mirror window count as visible.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings?.show()
+        return false
     }
 
     /// Quit tears the session down first (capture, mirror, display) and replies
@@ -34,7 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 MainActor.assumeIsolated {
     let app = NSApplication.shared
-    app.setActivationPolicy(.accessory)
+    var showInDock = DockSetting.load(from: .standard)
+    #if DEBUG
+    // The self-test never shows a Dock icon or any Settings UI.
+    if CommandLine.arguments.contains(SelfTest.flag) { showInDock = false }
+    #endif
+    DockIcon.apply(isShown: showInDock)
     // `NSApplication.delegate` is weak, so keep a strong top-level reference.
     let delegate = AppDelegate()
     withExtendedLifetime(delegate) {
