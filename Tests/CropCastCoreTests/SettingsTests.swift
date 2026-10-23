@@ -57,7 +57,7 @@ struct LoginItemRowTests {
     /// An installed app that was never registered reports `.notFound`
     /// ("record not found"), so the switch must stay usable: registering is
     /// the only way out of that status.
-    @Test func notFoundInAnAppBundleIsAnUsableOffSwitchWithoutNote() {
+    @Test func notFoundInAnAppBundleIsAUsableOffSwitchWithoutNote() {
         let row = LoginItemRow.make(status: .notFound, isAppBundle: true, error: nil)
         #expect(row == LoginItemRow(isOn: false, isEnabled: true, note: nil, showsOpenLoginItems: false))
     }
@@ -175,5 +175,39 @@ struct LoginItemNoteTests {
         let off = LoginItemNote.failure(wantOn: false, domain: "D", code: 1, description: "x")
         #expect(off.isResolved(by: .notRegistered) == true)
         #expect(off.isResolved(by: .enabled) == false)
+    }
+
+    @Test func aPendingCheckReplacesTheCurrentNote() {
+        let carried = LoginItemNote.failure(wantOn: true, domain: "D", code: 1, description: "x")
+        let note = LoginItemNote.afterRead(current: carried, pendingWantOn: true, status: .notRegistered)
+        #expect(note == LoginItemNote.check(wantOn: true, status: .notRegistered))
+        #expect(note != carried)
+    }
+
+    @Test func aPendingCheckThatPassesClearsTheCurrentNote() {
+        let carried = LoginItemNote.check(wantOn: true, status: .notRegistered)
+        #expect(LoginItemNote.afterRead(current: carried, pendingWantOn: true, status: .enabled) == nil)
+    }
+
+    @Test func aPendingCheckCreatesANoteWhenThereWasNone() {
+        let note = LoginItemNote.afterRead(current: nil, pendingWantOn: false, status: .enabled)
+        #expect(note == LoginItemNote.check(wantOn: false, status: .enabled))
+        #expect(note != nil)
+    }
+
+    @Test func withoutAPendingCheckACarriedNoteStaysUntilTheStatusResolvesIt() {
+        let carried = LoginItemNote.failure(wantOn: true, domain: "D", code: 1, description: "x")
+        #expect(LoginItemNote.afterRead(current: carried, pendingWantOn: nil, status: .notRegistered) == carried)
+        #expect(LoginItemNote.afterRead(current: carried, pendingWantOn: nil, status: .requiresApproval) == carried)
+    }
+
+    @Test func withoutAPendingCheckACarriedNoteIsClearedOnceTheStatusResolvesIt() {
+        let carried = LoginItemNote.failure(wantOn: true, domain: "D", code: 1, description: "x")
+        #expect(LoginItemNote.afterRead(current: carried, pendingWantOn: nil, status: .enabled) == nil)
+    }
+
+    @Test(arguments: [LoginItemStatus.enabled, .notRegistered, .requiresApproval, .notFound])
+    func withoutAPendingCheckOrANoteThereStaysNoNote(status: LoginItemStatus) {
+        #expect(LoginItemNote.afterRead(current: nil, pendingWantOn: nil, status: status) == nil)
     }
 }

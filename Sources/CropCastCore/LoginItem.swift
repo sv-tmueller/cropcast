@@ -113,6 +113,23 @@ public struct LoginItemNote: Sendable, Equatable {
         }
     }
 
+    /// The note to keep after a status read. While a check is pending (a call
+    /// that did not throw, `pendingWantOn` is the state it asked for), the read
+    /// replaces the note. Otherwise a carried note stays until the read shows
+    /// the requested state, so a change made in System Settings never reads as
+    /// a failed call.
+    public static func afterRead(
+        current: LoginItemNote?, pendingWantOn: Bool?, status: LoginItemStatus
+    ) -> LoginItemNote? {
+        if let pendingWantOn {
+            return check(wantOn: pendingWantOn, status: status)
+        }
+        if let current, current.isResolved(by: status) {
+            return nil
+        }
+        return current
+    }
+
     /// True once a status read shows the state that was asked for.
     public func isResolved(by status: LoginItemStatus) -> Bool {
         wantOn == (status == .enabled)

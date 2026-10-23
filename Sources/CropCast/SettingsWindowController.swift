@@ -32,11 +32,7 @@ final class SettingsModel: ObservableObject {
     }
 
     private func applyStatus(_ status: LoginItemStatus) {
-        if let pending = pendingCheck {
-            loginNote = LoginItemNote.check(wantOn: pending, status: status)
-        } else if let note = loginNote, note.isResolved(by: status) {
-            loginNote = nil
-        }
+        loginNote = LoginItemNote.afterRead(current: loginNote, pendingWantOn: pendingCheck, status: status)
         loginRow = LoginItemRow.make(
             status: status, isAppBundle: loginItem.isAppBundle, error: loginNote?.text)
     }
@@ -70,8 +66,9 @@ final class SettingsModel: ObservableObject {
                 wantOn: wantOn, domain: ns.domain, code: ns.code, description: ns.localizedDescription)
         }
         refresh()
-        // The system can lag behind the call, so read once more shortly after.
-        guard pendingCheck != nil else { return }
+        // The system can lag behind the call, so read once more shortly after,
+        // also after a call that threw: the change may still have taken effect.
+        guard pendingCheck != nil || loginNote != nil else { return }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(1))
             guard let self, self.flipGeneration == generation else { return }
