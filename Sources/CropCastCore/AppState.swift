@@ -7,6 +7,8 @@ public enum FramePreset: CaseIterable, Sendable, Equatable {
 public enum MenuAction: Sendable, Equatable {
     case toggleSharing
     case toggleFrame
+    /// Lock or unlock the frame against mouse interaction.
+    case toggleFrameLock
     case selectPreset(FramePreset)
     /// Choose the source display by its stable key (the display UUID string).
     case selectDisplay(key: String)
@@ -18,7 +20,7 @@ public enum MenuAction: Sendable, Equatable {
         switch self {
         case .quit: return "q"
         case .openSettings: return ","
-        case .toggleSharing, .toggleFrame, .selectPreset, .selectDisplay: return ""
+        case .toggleSharing, .toggleFrame, .toggleFrameLock, .selectPreset, .selectDisplay: return ""
         }
     }
 }
@@ -52,12 +54,16 @@ public struct AppState: Sendable, Equatable {
     /// The glue reads this back from the frame overlay after every overlay call.
     public var isFrameVisible = false
     public var lastPreset: FramePreset?
+    /// Whether the frame is locked against mouse interaction. Persisting it is
+    /// the glue's job (`LockFrameSetting`).
+    public private(set) var isFrameLocked: Bool
     /// The display chosen in the Display menu. Only `.selectDisplay` changes
     /// it; it can name a display that is not connected right now.
     public private(set) var chosenDisplayKey: String?
 
-    public init(chosenDisplayKey: String? = nil) {
+    public init(chosenDisplayKey: String? = nil, isFrameLocked: Bool = false) {
         self.chosenDisplayKey = chosenDisplayKey
+        self.isFrameLocked = isFrameLocked
     }
 
     public var phase: SessionPhase { session.phase }
@@ -78,6 +84,8 @@ public struct AppState: Sendable, Equatable {
             return session.handle(.toggleSharing)
         case .toggleFrame:
             isFrameVisible.toggle()
+        case .toggleFrameLock:
+            isFrameLocked.toggle()
         case .selectPreset(let preset):
             lastPreset = preset
         case .selectDisplay(let key):
@@ -106,6 +114,7 @@ public struct AppState: Sendable, Equatable {
         return [
             .item(title: sharingTitle, action: .toggleSharing),
             .item(title: isFrameVisible ? "Hide Frame" : "Show Frame", action: .toggleFrame),
+            .checkable(title: "Lock Frame", action: .toggleFrameLock, isChecked: isFrameLocked),
             .separator,
             .submenu(
                 title: "Display",

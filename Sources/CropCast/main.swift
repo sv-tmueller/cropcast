@@ -19,10 +19,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         #endif
-        let controller = StatusMenuController(sharing: SharingController(deps: .live()))
+        let sharing = SharingController(deps: .live())
+        let controller = StatusMenuController(sharing: sharing)
         menuController = controller
-        let settings = SettingsWindowController()
+        let settings = SettingsWindowController(isFrameLocked: sharing.state.isFrameLocked)
         self.settings = settings
+        settings.onSetFrameLock { [weak sharing] in sharing?.setFrameLocked($0) }
+        sharing.onLockChange = { [weak settings] in settings?.frameLockDidChange($0) }
         controller.onOpenSettings = { [weak settings] in settings?.show() }
         dockIcon.onOpenSettings = { [weak settings] in settings?.show() }
         dockIcon.installMainMenu()

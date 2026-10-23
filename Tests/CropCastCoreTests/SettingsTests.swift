@@ -34,6 +34,33 @@ struct DockSettingTests {
     }
 }
 
+@Suite("LockFrameSetting")
+struct LockFrameSettingTests {
+    @Test func unsetMeansUnlocked() {
+        #expect(LockFrameSetting.isLocked(stored: nil) == false)
+    }
+
+    @Test func storedValueWins() {
+        #expect(LockFrameSetting.isLocked(stored: true) == true)
+        #expect(LockFrameSetting.isLocked(stored: false) == false)
+    }
+
+    @Test func keyIsStableSoARenameCannotDropTheSetting() {
+        #expect(LockFrameSetting.key == "CropCast.lockFrame")
+    }
+
+    @Test func storedTrueSurvivesANewDefaultsInstance() throws {
+        let suite = "CropCastTests.LockFrameSetting.\(UUID().uuidString)"
+        let first = try #require(UserDefaults(suiteName: suite))
+        defer { first.removePersistentDomain(forName: suite) }
+        #expect(LockFrameSetting.load(from: first) == false)
+        LockFrameSetting.save(true, to: first)
+
+        let second = try #require(UserDefaults(suiteName: suite))
+        #expect(LockFrameSetting.load(from: second) == true)
+    }
+}
+
 @Suite("LoginItemRow")
 struct LoginItemRowTests {
     @Test func enabledIsOnWithoutNote() {

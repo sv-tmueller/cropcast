@@ -42,6 +42,21 @@ public final class FrameOverlay {
         }
     }
 
+    /// While true the border ignores the mouse completely (the panels become
+    /// click-through), so clicks and drags on the band reach the app underneath, and
+    /// a drag already in progress is cancelled where it stands (no revert, no save).
+    /// It only blocks mouse interaction: `show(on:)`, `hide()` and `apply(preset:on:)`
+    /// keep working, and it survives them and style changes. Like `style`, changing
+    /// it never recreates a panel, never fires `regionDidChange` and never writes
+    /// the persisted state, so `windowNumbers` stay valid for a capture filter.
+    public var isLocked = false {
+        didSet {
+            guard isLocked != oldValue else { return }
+            for panel in panels { panel.ignoresMouseEvents = isLocked }
+            if isLocked { drag = nil }
+        }
+    }
+
     /// Window numbers of the four border panels (top, bottom, left, right).
     /// Stable across show/hide, so a capture filter can exclude them.
     public var windowNumbers: [Int] { panels.map(\.windowNumber) }
@@ -166,6 +181,7 @@ public final class FrameOverlay {
     // MARK: - Mouse interaction
 
     fileprivate func mouseDown(at location: CGPoint) {
+        guard !isLocked else { return }
         guard let region, let zone = BorderLayout.zone(at: location, in: region.rect) else {
             drag = nil
             return

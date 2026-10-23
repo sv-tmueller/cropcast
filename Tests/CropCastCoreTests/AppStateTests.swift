@@ -107,6 +107,7 @@ struct AppStateTests {
         #expect(entries == [
             .item(title: "Start Sharing", action: .toggleSharing),
             .item(title: "Show Frame", action: .toggleFrame),
+            .checkable(title: "Lock Frame", action: .toggleFrameLock, isChecked: false),
             .separator,
             .submenu(title: "Display", entries: [
                 .checkable(title: "Built-in", action: .selectDisplay(key: "key1"), isChecked: false),
@@ -279,11 +280,77 @@ struct AppStateTests {
         #expect(titles(state).contains("Settings…"))
     }
 
+    // MARK: Lock Frame
+
+    private func lockEntry(_ state: AppState) -> (title: String, isChecked: Bool)? {
+        for entry in state.menuEntries() {
+            if case let .checkable(title, .toggleFrameLock, isChecked) = entry { return (title, isChecked) }
+        }
+        return nil
+    }
+
+    private func state(in phase: SessionPhase, chosenDisplayKey: String? = nil) -> AppState {
+        var state = AppState(chosenDisplayKey: chosenDisplayKey)
+        switch phase {
+        case .idle: break
+        case .starting: state.apply(.toggleSharing)
+        case .sharing:
+            state.apply(.toggleSharing)
+            state.handle(.startSucceeded)
+        case .stopping:
+            state.apply(.toggleSharing)
+            state.handle(.startSucceeded)
+            state.apply(.toggleSharing)
+        }
+        return state
+    }
+
+    @Test func frameIsUnlockedByDefault() {
+        #expect(AppState().isFrameLocked == false)
+        #expect(lockEntry(AppState())?.title == "Lock Frame")
+        #expect(lockEntry(AppState())?.isChecked == false)
+    }
+
+    @Test func lockEntryFollowsTheLockState() {
+        var state = AppState()
+        #expect(state.apply(.toggleFrameLock) == [])
+        #expect(state.isFrameLocked == true)
+        #expect(lockEntry(state)?.isChecked == true)
+        #expect(state.apply(.toggleFrameLock) == [])
+        #expect(state.isFrameLocked == false)
+        #expect(lockEntry(state)?.isChecked == false)
+    }
+
+    @Test func initCanStartLocked() {
+        let state = AppState(isFrameLocked: true)
+        #expect(state.isFrameLocked)
+        #expect(lockEntry(state)?.isChecked == true)
+    }
+
+    @Test(arguments: [SessionPhase.idle, .starting, .sharing, .stopping])
+    func toggleFrameLockChangesNothingElse(phase: SessionPhase) {
+        var state = state(in: phase, chosenDisplayKey: "display-1")
+        state.apply(.toggleFrame)
+        state.apply(.selectPreset(.right))
+        let before = state
+        #expect(state.apply(.toggleFrameLock) == [])
+        #expect(state.isFrameLocked == true)
+        #expect(state.phase == before.phase)
+        #expect(state.isFrameVisible == before.isFrameVisible)
+        #expect(state.lastPreset == before.lastPreset)
+        #expect(state.chosenDisplayKey == before.chosenDisplayKey)
+        #expect(state.chosenDisplayKey == "display-1")
+
+        state.apply(.toggleFrameLock)
+        #expect(state == before)
+    }
+
     @Test func keyEquivalents() {
         #expect(MenuAction.quit.keyEquivalent == "q")
         #expect(MenuAction.openSettings.keyEquivalent == ",")
         #expect(MenuAction.toggleSharing.keyEquivalent == "")
         #expect(MenuAction.toggleFrame.keyEquivalent == "")
+        #expect(MenuAction.toggleFrameLock.keyEquivalent == "")
         #expect(MenuAction.selectPreset(.left).keyEquivalent == "")
     }
 

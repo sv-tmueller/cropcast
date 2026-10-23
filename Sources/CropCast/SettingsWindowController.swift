@@ -8,6 +8,10 @@ import SwiftUI
 final class SettingsModel: ObservableObject {
     @Published private(set) var showInDock: Bool
     @Published private(set) var loginRow: LoginItemRow
+    /// Mirrors the lock owned by `SharingController`; only `frameLockDidChange` writes it.
+    @Published private(set) var isFrameLocked: Bool
+    /// Asks the owner of the lock to flip it. The toggle updates when the owner reports back.
+    var onSetFrameLock: ((Bool) -> Void)?
     /// Called after the Dock policy changed, so the window can re-front itself.
     var dockDidChange: (() -> Void)?
 
@@ -20,9 +24,10 @@ final class SettingsModel: ObservableObject {
     /// Bumped on every flip, so a delayed re-read of an older flip does nothing.
     private var flipGeneration = 0
 
-    init(defaults: UserDefaults, loginItem: any LoginItemService) {
+    init(defaults: UserDefaults, loginItem: any LoginItemService, isFrameLocked: Bool = false) {
         self.defaults = defaults
         self.loginItem = loginItem
+        self.isFrameLocked = isFrameLocked
         showInDock = DockSetting.load(from: defaults)
         loginRow = LoginItemRow.make(status: loginItem.status, isAppBundle: loginItem.isAppBundle, error: nil)
     }
@@ -42,6 +47,16 @@ final class SettingsModel: ObservableObject {
         showInDock = isShown
         DockIcon.apply(isShown: isShown)
         dockDidChange?()
+    }
+
+    /// Forward only: the lock is saved and applied by `SharingController`.
+    func setFrameLocked(_ locked: Bool) {
+        onSetFrameLock?(locked)
+    }
+
+    /// The lock changed (from the menu or from this window).
+    func frameLockDidChange(_ locked: Bool) {
+        isFrameLocked = locked
     }
 
     func setLaunchAtLogin(_ wantOn: Bool) {
@@ -107,6 +122,9 @@ private struct SettingsView: View {
                         Button("Open Login Items…") { model.openLoginItems() }
                     }
                 }
+                Toggle(
+                    "Lock frame",
+                    isOn: Binding(get: { model.isFrameLocked }, set: { model.setFrameLocked($0) }))
             }
         }
         .formStyle(.grouped)
@@ -121,9 +139,23 @@ final class SettingsWindowController {
     private var window: NSWindow?
     private var keyObserver: (any NSObjectProtocol)?
 
-    init(defaults: UserDefaults = .standard, loginItem: any LoginItemService = LiveLoginItemService()) {
-        model = SettingsModel(defaults: defaults, loginItem: loginItem)
+    init(
+        defaults: UserDefaults = .standard, loginItem: any LoginItemService = LiveLoginItemService(),
+        isFrameLocked: Bool = false
+    ) {
+        model = SettingsModel(defaults: defaults, loginItem: loginItem, isFrameLocked: isFrameLocked)
         model.dockDidChange = { [weak self] in self?.refront() }
+    }
+
+    /// Wires the Lock frame toggle: `set` flips the lock, and `frameLockDidChange`
+    /// must be called whenever it changed.
+    func onSetFrameLock(_ set: @escaping (Bool) -> Void) {
+        model.onSetFrameLock = set
+    }
+
+    /// The lock changed elsewhere (the menu) or here; updates the toggle.
+    func frameLockDidChange(_ locked: Bool) {
+        model.frameLockDidChange(locked)
     }
 
     /// Opens the window, or brings the existing one to the front.
