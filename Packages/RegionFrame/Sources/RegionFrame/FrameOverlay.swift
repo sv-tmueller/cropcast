@@ -50,6 +50,8 @@ public final class FrameOverlay {
     private let interaction = InteractionBridge()
     let panels: [BorderPanel]
     private var drag: Drag?
+    /// Suppresses the snap-back backstop for our own synchronous didMove/didResize while laying out the strips.
+    private var isPlacing = false
 
     private struct Drag {
         let zone: BorderZone
@@ -64,7 +66,10 @@ public final class FrameOverlay {
         store = FrameStore(defaults: defaults)
         panels = BorderEdge.allCases.map { _ in BorderPanel(delegate: nil) }
         // Edge order of `panels` follows `BorderEdge.allCases`.
-        for panel in panels { panel.borderView.delegate = interaction }
+        for panel in panels {
+            panel.borderView.delegate = interaction
+            panel.delegate = interaction
+        }
         interaction.owner = self
     }
 
@@ -109,11 +114,25 @@ public final class FrameOverlay {
     private func place(_ new: FrameRegion) {
         let changed = region != new
         region = new
-        for (panel, edge) in zip(panels, BorderEdge.allCases) {
-            panel.setFrame(BorderLayout.strip(for: edge, in: new.rect), display: true)
-            panel.borderView.region = new.rect
-        }
+        layOutPanels(for: new.rect)
         if changed { regionDidChange?(new) }
+    }
+
+    private func layOutPanels(for rect: CGRect) {
+        isPlacing = true
+        defer { isPlacing = false }
+        for (panel, edge) in zip(panels, BorderEdge.allCases) {
+            panel.setFrame(BorderLayout.strip(for: edge, in: rect), display: true)
+            panel.borderView.region = rect
+        }
+    }
+
+    /// Backstop: a strip was moved or resized from outside. Restores all four to
+    /// the current region. Never fires `regionDidChange`, never saves.
+    fileprivate func panelFrameDidChange() {
+        guard !isPlacing, let region else { return }
+        let inPlace = zip(panels, BorderEdge.allCases).allSatisfy { $0.frame == BorderLayout.strip(for: $1, in: region.rect) }
+        if !inPlace { layOutPanels(for: region.rect) }
     }
 
     private func save() {
@@ -172,12 +191,15 @@ public final class FrameOverlay {
     }
 }
 
-/// Keeps the border protocol conformance out of the public class.
+/// Keeps the border protocol and window delegate conformances out of the public class.
 @MainActor
-private final class InteractionBridge: BorderInteractionDelegate {
+private final class InteractionBridge: NSObject, BorderInteractionDelegate, NSWindowDelegate {
     weak var owner: FrameOverlay?
 
     func borderMouseDown(at location: CGPoint) { owner?.mouseDown(at: location) }
     func borderMouseDragged(to location: CGPoint) { owner?.mouseDragged(to: location) }
     func borderMouseUp() { owner?.mouseUp() }
+
+    func windowDidMove(_ notification: Notification) { owner?.panelFrameDidChange() }
+    func windowDidResize(_ notification: Notification) { owner?.panelFrameDidChange() }
 }

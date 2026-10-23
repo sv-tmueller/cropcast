@@ -11,6 +11,12 @@ are verified by hand with the demo.
   window covers the interior, so clicks, scrolls and typing always reach the app
   below. Strips sit inside the rect (not outside) because presets touch the
   display edges.
+- **Strips never move on their own.** Each panel is `isMovable = false` and its
+  view has `mouseDownCanMoveWindow == false`, so the window server cannot drag,
+  tile or resize a single strip. Only the band drag and the handles change the
+  frame. As a backstop, an outside change to a strip's frame snaps all four back
+  to the current region, without `regionDidChange` and without writing
+  `RegionFrame.state.v1`.
 - **Exactly 16:9** means `w = 16k`, `h = 9k` with `k` a whole number of points,
   so `w*9 == h*16`. Minimum 640x360 (`k = 40`); maximum is the largest that fits.
 - **Handles.** Corners are L-shaped brackets, edges have a bar at their midpoint,
@@ -96,6 +102,15 @@ Run `regionframe-demo` (no `--seconds`) and check, on every connected display:
 - [ ] Clicks, scrolling and typing inside the frame reach the app below it.
 - [ ] Clicking or dragging the border does not take focus from the front app
       (its title bar stays active).
+- [ ] Drag each of the four strips on the plain band (away from the handles),
+      once slowly and once quickly. The whole frame moves and no strip comes
+      loose.
+- [ ] Ctrl+Cmd-drag each strip. The frame stays whole: it either stays put or
+      moves as a whole, and no strip is resized.
+- [ ] Drag a strip to the left, right and top screen edge and hold, also with
+      Option held. No tiling preview appears, and on release the frame is whole
+      and inside the display.
+- [ ] Afterwards, re-run the band-move and all-8-handles lines above.
 - [ ] The frame stays visible across app switches and Spaces and sits above the
       menu bar (place a preset that touches the top of the display).
 - [ ] After a drag by hand, Ctrl-C and relaunch with `--display <id>`: the frame

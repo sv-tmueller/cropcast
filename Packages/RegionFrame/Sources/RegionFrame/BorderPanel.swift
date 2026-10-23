@@ -32,6 +32,9 @@ final class BorderPanel: NSPanel {
         hasShadow = false
         isReleasedWhenClosed = false
         animationBehavior = .none
+        // A strip is part of one rigid frame; the window server must never drag or
+        // tile it alone. Only `setFrame` from FrameOverlay places it.
+        isMovable = false
     }
 
     /// Clicking the border must not take focus from the app being shared.
@@ -64,6 +67,10 @@ final class BorderView: NSView {
     }
 
     override var isOpaque: Bool { false }
+
+    /// A non-opaque view lets the window server drag the window by a click on it.
+    /// The band drag is ours (`mouseDragged`), so a strip must never move itself.
+    override var mouseDownCanMoveWindow: Bool { false }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
