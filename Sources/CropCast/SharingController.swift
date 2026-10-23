@@ -151,6 +151,8 @@ final class SharingController {
                 overlay.show(on: display)
             }
             state.isFrameVisible = overlay.isVisible
+        case .toggleFrameLock:
+            state.apply(.toggleFrameLock)
         case .selectPreset(let preset):
             state.apply(.selectPreset(preset))
             if let display = sessionSource ?? chooseSourceDisplay() {
