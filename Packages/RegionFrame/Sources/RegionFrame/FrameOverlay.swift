@@ -29,13 +29,26 @@ public final class FrameOverlay {
 
     public private(set) var isVisible = false
 
+    /// How the frame is drawn: `.idle` (blue, default) or `.live` (red, a share
+    /// session is running). Changing it only redraws the four existing panels. It
+    /// never places, saves, shows or hides the frame, never fires `regionDidChange`,
+    /// never writes the persisted state and never recreates a panel, so
+    /// `windowNumbers` stay valid for a capture filter. It can be set while the
+    /// frame is hidden, and `show(on:)`, `hide()` and `apply(preset:on:)` keep it.
+    public var style: FrameStyle = .idle {
+        didSet {
+            guard style != oldValue else { return }
+            for panel in panels { panel.borderView.style = style }
+        }
+    }
+
     /// Window numbers of the four border panels (top, bottom, left, right).
     /// Stable across show/hide, so a capture filter can exclude them.
     public var windowNumbers: [Int] { panels.map(\.windowNumber) }
 
     private let store: FrameStore
     private let interaction = InteractionBridge()
-    private let panels: [BorderPanel]
+    let panels: [BorderPanel]
     private var drag: Drag?
 
     private struct Drag {

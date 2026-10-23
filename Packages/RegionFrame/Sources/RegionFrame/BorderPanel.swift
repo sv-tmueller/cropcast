@@ -51,8 +51,17 @@ final class BorderView: NSView {
         didSet { needsDisplay = true }
     }
 
-    private static let bandColor = NSColor.systemBlue.withAlphaComponent(0.55)
-    private static let handleColor = NSColor.systemBlue
+    /// Only redraws; the style never moves or recreates anything.
+    var style: FrameStyle = .idle {
+        didSet { if style != oldValue { needsDisplay = true } }
+    }
+
+    private static func baseColor(for tint: BorderTint) -> NSColor {
+        switch tint {
+        case .blue: .systemBlue
+        case .red: .systemRed
+        }
+    }
 
     override var isOpaque: Bool { false }
 
@@ -64,10 +73,11 @@ final class BorderView: NSView {
         let origin = window.frame.origin
         func local(_ rect: CGRect) -> CGRect { rect.offsetBy(dx: -origin.x, dy: -origin.y) }
 
-        Self.bandColor.setFill()
+        let base = Self.baseColor(for: style.tint)
+        base.withAlphaComponent(0.55).setFill()
         bounds.fill()
 
-        Self.handleColor.setFill()
+        base.setFill()
         for handle in FrameHandle.allCases {
             for rect in BorderLayout.handleRects(for: handle, in: region) {
                 let visible = local(rect).intersection(bounds)

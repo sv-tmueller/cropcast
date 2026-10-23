@@ -22,6 +22,12 @@ are verified by hand with the demo.
   `show(on:)` or `apply(preset:on:)` to change display.
 - **Presets** (`RegionPreset`): `.left`, `.center`, `.right` are the largest
   16:9 frame that fits, centred vertically.
+- **Style** (`FrameStyle`): `.idle` is blue (default), `.live` is red; the app
+  sets `.live` while a share session runs. A style change only redraws the four
+  existing panels. It never places, saves, shows or hides the frame, never fires
+  `regionDidChange`, never writes `RegionFrame.state.v1` and never recreates a
+  panel, so `windowNumbers` stay valid for a capture filter that lists them once.
+  It can be set while the frame is hidden and survives hide, show and presets.
 
 ## API
 
@@ -31,6 +37,7 @@ overlay.regionDidChange = { region in /* FrameRegion(displayID:rect:) */ }
 overlay.show(on: displayID)
 overlay.apply(preset: .right, on: displayID)
 overlay.hide()
+overlay.style = .live   // red while sharing; .idle (blue) is the default
 overlay.windowNumbers   // 4 panel window numbers, stable across show/hide
 ```
 
@@ -64,6 +71,7 @@ D=Packages/RegionFrame/.build/debug/regionframe-demo
 $D --list                                  # displays: id and frames
 $D --display 1 --preset right --seconds 5  # a display id from --list (id=, not a position)
 $D --display 1 --cycle-presets --seconds 4 # left, center, right, once per second
+$D --display 1 --live --seconds 5          # red band and handles instead of blue
 $D --reset --display 1 --seconds 1         # forget saved regions first
 $D                                         # run until Ctrl-C, drag by hand
 ```
@@ -96,3 +104,7 @@ Run `regionframe-demo` (no `--seconds`) and check, on every connected display:
 - [ ] The four `windowNumbers` printed at startup match the border windows
       (they are what batch 2 excludes from capture), and no demo process is
       left running afterwards.
+- [ ] `--display <id> --live --seconds 5` shows a red band and red handles; the
+      same command without `--live` shows blue ones.
+- [ ] In the app while sharing, the red border is visible on the source display
+      and Teams viewers do not see it.
