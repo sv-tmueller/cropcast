@@ -41,11 +41,18 @@ window to the front.
   relaunch needed. The menu bar icon stays either way. With the Dock icon
   shown, the app menu holds Settings… and Quit CropCast.
 - **Launch at login**: starts CropCast when you log in. It uses the macOS login
-  item of the running app, so it works only from an installed `CropCast.app`
-  (use `make install`); under `swift run` the switch is disabled. If macOS asks
-  for approval, the row offers "Open Login Items…". The switch always shows the
-  real system state, so a change made in System Settings > General > Login
-  Items appears when the Settings window regains focus.
+  item of the running app, so it works from any `CropCast.app` and registers
+  that copy's path: use the one in `/Applications` (`make install`), not
+  `build/CropCast.app`. Under `swift run` the switch is disabled. The switch
+  is off until you turn it on; turning it on registers CropCast with macOS,
+  which may post a "Login Item Added" notification. If macOS asks for
+  approval, the row offers "Open Login Items…". If macOS refuses, the text
+  under the switch says why (description, error domain and code). The switch
+  always shows the real system state, so a change made in System Settings >
+  General > Login Items appears when the Settings window regains focus. Every
+  status read and register or unregister call is logged:
+  `/usr/bin/log show --last 10m --style compact --predicate 'subsystem == "com.github.sv-tmueller.cropcast"'`
+  (use the full path: in zsh a bare `log` is a shell builtin).
 
 The Settings window is one of CropCast's own windows, so it is excluded from
 capture like CropCast's other windows.
@@ -211,9 +218,10 @@ the stale grant by hand and grant it again:
 - **Not handled yet:** sleep/wake and a display connecting, disconnecting or
   changing mode. If a session misbehaves after one of these, choose Stop
   Sharing and start again.
-- **Launch at login is greyed out:** it needs the installed `CropCast.app`
-  (`make install`); it is unavailable under `swift run` and for a copy that
-  macOS cannot find as an app.
+- **Launch at login is greyed out:** it is greyed out only when CropCast is
+  not running as an `.app` (for example under `swift run` or
+  `.build/debug/CropCast`). Run the installed `CropCast.app` (`make install`).
+  An installed app that was never registered shows an enabled, off switch.
 
 ### Teams test checklist
 
@@ -295,9 +303,18 @@ login registers the running bundle's path.
       still no Dock icon, and Settings… still opens the window in front.
 - [ ] Show in Dock on again: the Dock icon appears at once, and the app menu
       (Settings…, Quit CropCast) shows once CropCast is active.
-- [ ] Launch at login matches System Settings > General > Login Items: on adds
-      CropCast there, off removes it, and a change made in System Settings
-      shows when Settings regains focus. After logging out and in with it on,
-      CropCast is running. Under `swift run` the switch is disabled with a note.
+- [ ] Launch at login is enabled and off on first use, with no note. Turning
+      it on keeps it on, and System Settings > General > Login Items lists
+      CropCast; turning it off removes the entry. A change made in System
+      Settings shows when Settings regains focus, with no stale note. After
+      logging out and in with it on, CropCast is running. Under `swift run`
+      the switch is disabled with a note.
+- [ ] Quit and reopen CropCast: the switch matches System Settings.
+- [ ] After turning Launch at login on,
+      `/usr/bin/log show --last 10m --style compact --predicate 'subsystem == "com.github.sv-tmueller.cropcast" AND category == "login-item"'`
+      shows `register start`, `register ok`, then a status read of `enabled`
+      (before the first registration the reads show `notFound`, raw 3). If
+      macOS refuses to register, the text under the switch gives the
+      description, domain and code, and the log shows the matching error line.
 - [ ] Quit CropCast from the app menu while sharing tears the session down:
       `system_profiler SPDisplaysDataType | grep -c CropCast` prints 0.
