@@ -286,6 +286,31 @@ struct AppStateTests {
         #expect(MenuAction.toggleFrame.keyEquivalent == "")
         #expect(MenuAction.selectPreset(.left).keyEquivalent == "")
     }
+
+    // MARK: Status icon
+
+    @Test func statusIconIsIdleOnlyWhenIdle() {
+        var state = AppState()
+        #expect(state.statusIcon == .idle)
+        state.apply(.toggleSharing)
+        #expect(state.phase == .starting)
+        #expect(state.statusIcon == .live)
+        state.handle(.startSucceeded)
+        #expect(state.phase == .sharing)
+        #expect(state.statusIcon == .live)
+        state.apply(.toggleSharing)
+        #expect(state.phase == .stopping)
+        #expect(state.statusIcon == .live)
+        state.handle(.stopCompleted)
+        #expect(state.statusIcon == .idle)
+    }
+
+    @Test func idleAndLiveIconsDiffer() {
+        #expect(StatusIcon.idle.isLive == false)
+        #expect(StatusIcon.live.isLive == true)
+        #expect(StatusIcon.idle.symbolName != StatusIcon.live.symbolName)
+        #expect(StatusIcon.idle.accessibilityDescription != StatusIcon.live.accessibilityDescription)
+    }
 }
 
 @Suite("StartFailureMessage")

@@ -136,4 +136,38 @@ struct SessionMachineTests {
         #expect(sharing.handle(.stopCompleted) == [])
         #expect(sharing.phase == .sharing)
     }
+
+    // MARK: Live
+
+    @Test(arguments: [
+        (SessionPhase.idle, false), (.starting, true), (.sharing, true), (.stopping, true),
+    ])
+    func isLiveCoversEveryPhaseExceptIdle(phase: SessionPhase, expected: Bool) {
+        #expect(phase.isLive == expected)
+    }
+
+    @Test func liveFollowsThePhaseThroughStartFailureShareAndQuit() {
+        var m = SessionMachine()
+        #expect(m.phase.isLive == false)
+
+        _ = m.handle(.toggleSharing)
+        #expect(m.phase.isLive == true)
+        _ = m.handle(.startFailed)
+        #expect(m.phase.isLive == false)
+
+        _ = m.handle(.toggleSharing)
+        #expect(m.phase.isLive == true)
+        _ = m.handle(.startCancelled)
+        #expect(m.phase.isLive == false)
+
+        _ = m.handle(.toggleSharing)
+        _ = m.handle(.startSucceeded)
+        #expect(m.phase == .sharing)
+        #expect(m.phase.isLive == true)
+        _ = m.handle(.quitRequested)
+        #expect(m.phase == .stopping)
+        #expect(m.phase.isLive == true)
+        _ = m.handle(.stopCompleted)
+        #expect(m.phase.isLive == false)
+    }
 }

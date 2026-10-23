@@ -25,7 +25,8 @@ Status: in development. Design: `docs/superpowers/specs/2026-10-22-cropcast-desi
 `swift run CropCast` also works for a quick check; it is not a signed bundle,
 so use the `.app` for anything involving permissions, and Launch at login is
 unavailable there. CropCast shows a Dock icon by default (see "Settings"
-below). The menu bar icon (dashed rectangle) offers Start/Stop Sharing,
+below). The menu bar icon (a dashed rectangle; while
+sharing is live, the dashed rectangle with a record badge, tinted red) offers Start/Stop Sharing,
 Show/Hide Frame, a Display submenu (the connected displays, one checked), a
 Presets submenu (Left, Center, Right), Settings… and Quit. The global hotkey
 Control-Option-Command-F triggers the same action as Show/Hide Frame. For how
@@ -172,6 +173,11 @@ the stale grant by hand and grant it again:
 1. Open CropCast (menu bar icon, plus a Dock icon unless you turned it off in
    Settings) and choose **Start Sharing**.
    The item reads "Starting…" while the session comes up, then "Stop Sharing".
+   From "Starting…" until the session has fully stopped, the frame turns red and
+   the menu bar icon shows the dashed rectangle with a record badge, tinted red;
+   both are back to normal (blue frame, plain dashed rectangle) when idle, also after a failed Start. Red
+   means the CropCast session is live: macOS gives no way to tell whether Teams
+   is actually viewing it.
    Start creates the CropCast virtual display, opens a full-screen mirror of
    the region on it, shows the frame on your source display and starts
    capturing the frame's region. If any step fails, everything already started
@@ -184,14 +190,15 @@ the stale grant by hand and grant it again:
 3. Position the frame over what you want to share. Dragging or resizing it, or
    choosing Presets > Left, Center or Right (applied on the source display),
    updates the shared region live. Viewers never see the
-   frame border, because capture excludes CropCast's own windows.
+   frame border in either color, because capture excludes CropCast's own
+   windows.
 4. The hotkey Control-Option-Command-F shows or hides the frame at any time,
    like Show Frame / Hide Frame in the menu.
 5. In Teams, open the Share picker and choose the CropCast screen. It is a
    screen entry and may be listed as "Screen N".
 6. When done, choose **Stop Sharing** ("Stopping…" while it winds down). Stop
    ends the capture, closes the mirror, removes the virtual display and hides
-   the frame. Quitting CropCast does the same.
+   the frame (blue again if you show it). Quitting CropCast does the same.
 
 ### Troubleshooting
 
@@ -268,6 +275,14 @@ the stale grant by hand and grant it again:
       afterwards: `system_profiler SPDisplaysDataType | grep -c CropCast`
       prints 0.
 - [ ] `make uninstall` removes the app; a second run prints "not installed".
+- [ ] The frame is blue while idle, red during "Starting…", "Sharing" and
+      "Stopping…", and blue again after Stop Sharing.
+- [ ] After a failed Start the frame is blue: show the frame, revoke Screen
+      Recording (or use a build without the grant), choose Start Sharing; the
+      permission alert appears and the visible frame is blue, not red.
+- [ ] Hiding and showing the frame (menu or hotkey) during a share keeps it
+      red; choosing a Display or a Preset while idle keeps it blue.
+- [ ] Teams viewers see no border, red or blue.
 
 ## Manual verification (app shell)
 
@@ -287,6 +302,11 @@ the stale grant by hand and grant it again:
       Show Frame and Hide Frame (check by reopening the menu).
 - [ ] Clicking Show Frame / Start Sharing flips the label on next open.
 - [ ] Quit CropCast (or Command-Q with the menu open) terminates the app.
+- [ ] While sharing is live ("Starting…" to "Stopping…"), the menu bar shows
+      the dashed rectangle with a record badge, tinted red; when idle, the
+      plain dashed rectangle. If the menu bar ignores the tint, the badge shape
+      alone shows the state. Both are readable in light and dark mode and while the
+      menu is open.
 
 ## Manual verification (Settings)
 

@@ -86,7 +86,13 @@ final class SharingController {
     fileprivate static let logger = Logger(
         subsystem: "com.github.sv-tmueller.cropcast", category: "session")
 
-    private(set) var state: AppState
+    /// Every phase change goes through this property, so one observer covers
+    /// Start, a failed or cancelled start, Stop and the quit teardown.
+    private(set) var state: AppState {
+        didSet { if state.phase.isLive != oldValue.phase.isLive { liveDidChange() } }
+    }
+    /// Called after the live state flipped (the frame style is already updated).
+    var onLiveChange: (@MainActor () -> Void)?
     let overlay: FrameOverlay
     /// The source display of the running session; nil unless a session is up.
     private(set) var sessionSource: CGDirectDisplayID?
@@ -119,6 +125,13 @@ final class SharingController {
         overlay.regionDidChange = { [weak self] region in
             MainActor.assumeIsolated { self?.frameRegionDidChange(region) }
         }
+    }
+
+    /// The frame is red exactly while the session is live. On a failed start this
+    /// runs before the alert, so the frame is already blue when it appears.
+    private func liveDidChange() {
+        overlay.style = state.phase.isLive ? .live : .idle
+        onLiveChange?()
     }
 
     // MARK: Menu and hotkey

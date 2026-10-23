@@ -20,11 +20,12 @@ struct RegionFrameDemo {
         var cyclePresets = false
         var seconds: Int?
         var reset = false
+        var live = false
     }
 
     static let usage = """
         usage: regionframe-demo [--list] [--display <displayID>] [--preset left|center|right] \
-        [--cycle-presets] [--seconds N] [--reset]
+        [--cycle-presets] [--seconds N] [--reset] [--live]
         """
 
     static func parse(_ arguments: [String]) -> Options? {
@@ -51,6 +52,8 @@ struct RegionFrameDemo {
                 options.seconds = value
             case "--reset":
                 options.reset = true
+            case "--live":
+                options.live = true
             default:
                 return nil
             }
@@ -97,6 +100,7 @@ struct RegionFrameDemo {
         print("suite: \(suiteName)")
         print("windowNumbers: \(overlay.windowNumbers)")
 
+        if options.live { overlay.style = .live }
         overlay.show(on: displayID)
         if let preset = options.preset {
             overlay.apply(preset: preset, on: displayID)

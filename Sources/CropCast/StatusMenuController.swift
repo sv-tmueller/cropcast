@@ -15,16 +15,26 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         self.sharing = sharing
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        if let button = statusItem.button {
-            let image = NSImage(
-                systemSymbolName: "rectangle.dashed", accessibilityDescription: "CropCast")
-            image?.isTemplate = true
-            button.image = image
-        }
+        applyIcon()
+        sharing.onLiveChange = { [weak self] in self?.applyIcon() }
         // Submenu items get their enabled state from the entries, not from AppKit.
         menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
+    }
+
+    /// The icon follows `AppState.statusIcon`. It stays a template image so the
+    /// menu bar draws it in light and dark mode; the badge shape tells the state
+    /// even where the red tint is ignored.
+    private func applyIcon() {
+        guard let button = statusItem.button else { return }
+        let icon = sharing.state.statusIcon
+        let image = NSImage(
+            systemSymbolName: icon.symbolName,
+            accessibilityDescription: icon.accessibilityDescription)
+        image?.isTemplate = true
+        button.image = image
+        button.contentTintColor = icon.isLive ? .systemRed : nil
     }
 
     /// Single entry point for menu clicks and the hotkey.
