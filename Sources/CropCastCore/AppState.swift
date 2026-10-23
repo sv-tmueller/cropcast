@@ -8,14 +8,18 @@ public enum MenuAction: Sendable, Equatable {
     case toggleSharing
     case toggleFrame
     case selectPreset(FramePreset)
+    /// Choose the source display by its stable key (the display UUID string).
+    case selectDisplay(key: String)
     case quit
 }
 
 /// Pure description of one menu row, rendered to `NSMenu` by the app glue.
 public enum MenuEntry: Sendable, Equatable {
     case item(title: String, action: MenuAction)
+    /// An item with a checkmark.
+    case checkable(title: String, action: MenuAction, isChecked: Bool)
     case separator
-    case submenu(title: String, entries: [MenuEntry])
+    case submenu(title: String, entries: [MenuEntry], isEnabled: Bool = true)
 }
 
 /// App-level state shown in the menu bar. Pure Swift: no AppKit.
@@ -24,11 +28,18 @@ public struct AppState: Sendable, Equatable {
     /// The glue reads this back from the frame overlay after every overlay call.
     public var isFrameVisible = false
     public var lastPreset: FramePreset?
+    /// The display chosen in the Display menu. Only `.selectDisplay` changes
+    /// it; it can name a display that is not connected right now.
+    public private(set) var chosenDisplayKey: String?
 
-    public init() {}
+    public init(chosenDisplayKey: String? = nil) {
+        self.chosenDisplayKey = chosenDisplayKey
+    }
 
     public var phase: SessionPhase { session.phase }
     public var isSharing: Bool { phase == .sharing }
+    /// The source display can only change while no session is running.
+    public var canChooseDisplay: Bool { phase == .idle }
 
     /// Applies a user command and returns what the glue has to do about the
     /// sharing session. `.quit` does not change state: the glue terminates the
@@ -42,6 +53,8 @@ public struct AppState: Sendable, Equatable {
             isFrameVisible.toggle()
         case .selectPreset(let preset):
             lastPreset = preset
+        case .selectDisplay(let key):
+            if canChooseDisplay { chosenDisplayKey = key }
         case .quit:
             break
         }
@@ -54,12 +67,27 @@ public struct AppState: Sendable, Equatable {
         session.handle(event)
     }
 
-    /// The menu for the current state, in display order.
-    public func menuEntries() -> [MenuEntry] {
-        [
+    /// The menu for the current state, in display order. `displays` are the
+    /// connected displays in `NSScreen.screens` order; `excluding` (the virtual
+    /// displays) is left out of the Display submenu.
+    public func menuEntries(
+        displays: [DisplayCandidate] = [], excluding: Set<UInt32> = []
+    ) -> [MenuEntry] {
+        let shown = displays.filter { !excluding.contains($0.id) }
+        let checked = SourceDisplayChoice.pick(
+            from: shown, excluding: [], chosenKey: chosenDisplayKey)
+        return [
             .item(title: sharingTitle, action: .toggleSharing),
             .item(title: isFrameVisible ? "Hide Frame" : "Show Frame", action: .toggleFrame),
             .separator,
+            .submenu(
+                title: "Display",
+                entries: shown.map {
+                    .checkable(
+                        title: $0.name, action: .selectDisplay(key: $0.key),
+                        isChecked: $0.id == checked)
+                },
+                isEnabled: canChooseDisplay),
             .submenu(title: "Presets", entries: [
                 .item(title: "Left", action: .selectPreset(.left)),
                 .item(title: "Center", action: .selectPreset(.center)),

@@ -80,16 +80,21 @@ enum SessionError: Error, LocalizedError {
 /// `SessionMachine`); this class supplies the AppKit/ScreenCaptureKit steps.
 @MainActor
 final class SharingController {
-    static let lastSourceDisplayKey = "CropCast.lastSourceDisplayKey"
+    /// Written only when the user chooses from the Display menu. The older
+    /// `CropCast.lastSourceDisplayKey` (written by every placement) is ignored.
+    static let chosenSourceDisplayKey = "CropCast.chosenSourceDisplayKey"
     fileprivate static let logger = Logger(
         subsystem: "com.github.sv-tmueller.cropcast", category: "session")
 
-    private(set) var state = AppState()
+    private(set) var state: AppState
     let overlay: FrameOverlay
     /// The source display of the running session; nil unless a session is up.
     private(set) var sessionSource: CGDirectDisplayID?
     /// The CropCast virtual display of the running session.
     private(set) var virtualDisplayID: CGDirectDisplayID?
+    /// Every virtual display id this process has created. `NSScreen.screens`
+    /// can list a removed one briefly after Stop, so none is ever a source.
+    private(set) var virtualDisplayIDs: Set<CGDirectDisplayID> = []
     /// Awaited after a quit's teardown, before the terminate reply. The
     /// self-test uses it to check the display count and exit.
     #if DEBUG
@@ -108,6 +113,8 @@ final class SharingController {
 
     init(deps: SharingDependencies) {
         self.deps = deps
+        state = AppState(
+            chosenDisplayKey: deps.defaults.string(forKey: Self.chosenSourceDisplayKey))
         overlay = FrameOverlay(defaults: deps.defaults)
         overlay.regionDidChange = { [weak self] region in
             MainActor.assumeIsolated { self?.frameRegionDidChange(region) }
@@ -127,16 +134,24 @@ final class SharingController {
             if overlay.isVisible {
                 overlay.hide()
             } else if let display = sessionSource ?? chooseSourceDisplay() {
+                // Always pass the display: RegionFrame's own last display is not used.
                 overlay.show(on: display)
-                rememberPlacement()
             }
             state.isFrameVisible = overlay.isVisible
         case .selectPreset(let preset):
             state.apply(.selectPreset(preset))
-            if let display = overlay.region?.displayID ?? chooseSourceDisplay() {
+            if let display = sessionSource ?? chooseSourceDisplay() {
                 overlay.apply(preset: regionPreset(for: preset), on: display)
-                rememberPlacement()
             }
+            state.isFrameVisible = overlay.isVisible
+        case .selectDisplay(let key):
+            guard state.canChooseDisplay,
+                let display = sourceCandidates().first(where: { $0.key == key })
+            else { break }
+            state.apply(.selectDisplay(key: key))
+            deps.defaults.set(key, forKey: Self.chosenSourceDisplayKey)
+            // Choosing always shows the frame, on the chosen display.
+            overlay.show(on: display.id)
             state.isFrameVisible = overlay.isVisible
         case .quit:
             break
@@ -262,6 +277,7 @@ final class SharingController {
                 // The only strong reference: the display goes away when the undo does.
                 let display = try await VirtualDisplay.start()
                 virtualDisplayID = display.displayID
+                virtualDisplayIDs.insert(display.displayID)
                 return { [self] _ in
                     display.stop()
                     virtualDisplayID = nil
@@ -315,7 +331,6 @@ final class SharingController {
         guard let source = chosen else { throw SessionError.noSourceDisplay }
         let wasVisible = overlay.isVisible
         overlay.show(on: source)
-        rememberPlacement()
         // An unconnected id is a silent no-op in RegionFrame, so check the result.
         guard overlay.isVisible, overlay.region?.displayID == source else {
             if !wasVisible { overlay.hide() }
@@ -362,7 +377,6 @@ final class SharingController {
     // MARK: Live region updates
 
     private func frameRegionDidChange(_ region: FrameRegion) {
-        rememberPlacement()
         if let rect = coalescer.submit(region.rect) { sendUpdate(rect) }
     }
 
@@ -385,20 +399,30 @@ final class SharingController {
 
     // MARK: Source display
 
-    private func chooseSourceDisplay() -> CGDirectDisplayID? {
-        let candidates = NSScreen.screens.compactMap { screen -> DisplayCandidate? in
+    /// The connected displays in `NSScreen.screens` order, with their names.
+    private func connectedDisplays() -> [DisplayCandidate] {
+        NSScreen.screens.compactMap { screen in
             guard let id = screen.displayID else { return nil }
-            return DisplayCandidate(id: id, key: displayKey(id), width: screen.frame.width)
+            return DisplayCandidate(
+                id: id, key: displayKey(id), name: screen.localizedName, width: screen.frame.width)
         }
-        return SourceDisplayChoice.pick(
-            from: candidates, excluding: virtualDisplayID,
-            lastUsedKey: deps.defaults.string(forKey: Self.lastSourceDisplayKey))
     }
 
-    /// The last used display is the one of the frame's most recent placement.
-    private func rememberPlacement() {
-        guard let region = overlay.region else { return }
-        deps.defaults.set(displayKey(region.displayID), forKey: Self.lastSourceDisplayKey)
+    /// The displays the user can choose from: connected, never a virtual one.
+    private func sourceCandidates() -> [DisplayCandidate] {
+        connectedDisplays().filter { !virtualDisplayIDs.contains($0.id) }
+    }
+
+    /// The display the chosen key names if it is connected, else the widest.
+    private func chooseSourceDisplay() -> CGDirectDisplayID? {
+        SourceDisplayChoice.pick(
+            from: connectedDisplays(), excluding: virtualDisplayIDs,
+            chosenKey: state.chosenDisplayKey)
+    }
+
+    /// The menu for the current state, with the connected displays.
+    func menuEntries() -> [MenuEntry] {
+        state.menuEntries(displays: connectedDisplays(), excluding: virtualDisplayIDs)
     }
 }
 

@@ -2,7 +2,7 @@ import AppKit
 import CropCastCore
 
 /// Owns the `NSStatusItem` and renders the menu. The menu is rebuilt from
-/// `AppState.menuEntries()` every time it opens, so labels are always current.
+/// `SharingController.menuEntries()` every time it opens, so labels are always current.
 @MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
     let sharing: SharingController
@@ -19,6 +19,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             image?.isTemplate = true
             button.image = image
         }
+        // Submenu items get their enabled state from the entries, not from AppKit.
+        menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
     }
@@ -34,7 +36,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        for entry in sharing.state.menuEntries() {
+        for entry in sharing.menuEntries() {
             menu.addItem(makeItem(entry))
         }
     }
@@ -50,8 +52,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             item.target = self
             item.representedObject = action
             return item
-        case let .submenu(title, entries):
+        case let .checkable(title, action, isChecked):
+            let item = NSMenuItem(
+                title: title, action: #selector(menuItemClicked(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = action
+            item.state = isChecked ? .on : .off
+            return item
+        case let .submenu(title, entries, isEnabled):
             let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            item.isEnabled = isEnabled
             let submenu = NSMenu(title: title)
             for child in entries {
                 submenu.addItem(makeItem(child))
