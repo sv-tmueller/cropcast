@@ -25,7 +25,8 @@ Status: in development. Design: `docs/superpowers/specs/2026-10-22-cropcast-desi
 `swift run CropCast` also works for a quick check; it runs without a Dock icon
 but is not a signed bundle, so use the `.app` for anything involving
 permissions. The menu bar icon (dashed rectangle) offers Start/Stop Sharing,
-Show/Hide Frame, a Presets submenu (Left, Center, Right) and Quit. The global
+Show/Hide Frame, a Display submenu (the connected displays, one checked), a
+Presets submenu (Left, Center, Right) and Quit. The global
 hotkey Control-Option-Command-F triggers the same action as Show/Hide Frame.
 For how to share a region in Teams, see "Using CropCast with Teams" below.
 
@@ -100,12 +101,14 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
    the region on it, shows the frame on your source display and starts
    capturing the frame's region. If any step fails, everything already started
    is undone and an alert "Sharing did not start" names the step.
-2. The source display is the display the frame was last on if it is still
-   connected, else the widest connected display. It is never the CropCast
-   virtual display.
+2. The source display is the one checked in **Display**, if it is still
+   connected, else the widest connected display. Choose a display there while
+   not sharing: the frame moves to it (and is shown if it was hidden), and the
+   choice is kept across launches. The submenu is greyed out during a session.
+   It never lists the CropCast virtual display.
 3. Position the frame over what you want to share. Dragging or resizing it, or
-   choosing Presets > Left, Center or Right (applied to the frame on its
-   current display), updates the shared region live. Viewers never see the
+   choosing Presets > Left, Center or Right (applied on the source display),
+   updates the shared region live. Viewers never see the
    frame border, because capture excludes CropCast's own windows.
 4. The hotkey Control-Option-Command-F shows or hides the frame at any time,
    like Show Frame / Hide Frame in the menu.
@@ -131,15 +134,11 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
   is revoked while sharing, the capture stops but the menu still says "Stop
   Sharing"; reacting to that is not handled yet. Choose Stop Sharing, fix the
   permission and start again.
-- **The frame is on the wrong display:** choosing the display is not supported
-  yet. Start keeps the display the frame was last on while it is connected, so
-  Stop Sharing and Start Sharing again does not move it. To reset it, quit
-  CropCast, run
-
-      defaults delete com.github.sv-tmueller.cropcast \
-          CropCast.lastSourceDisplayKey
-
-  and reopen CropCast. Start then falls back to the widest connected display.
+- **The frame is on the wrong display:** stop sharing if needed, then choose
+  Display > the display you want (it is named as in System Settings > Displays).
+  The frame moves there and the next Start uses it. If the chosen display is
+  unplugged, the widest connected display is used and checked; the choice
+  applies again when it is back.
 - **Not handled yet:** sleep/wake and a display connecting, disconnecting or
   changing mode. If a session misbehaves after one of these, choose Stop
   Sharing and start again.
@@ -158,6 +157,10 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
       then "Stop Sharing", and the frame appears on the source display.
 - [ ] Teams' Share picker lists the CropCast screen (possibly "Screen N");
       sharing it shows the framed region live, including the cursor.
+- [ ] Display lists each connected display by name (never CropCast) with the
+      source checked; choosing the other display moves the frame there, and
+      Teams shows that display's content after Start Sharing. The submenu is
+      greyed out while sharing.
 - [ ] Dragging and resizing the frame, and the Left, Center and Right presets,
       change what Teams shows; the frame border is not visible to viewers.
 - [ ] Control-Option-Command-F hides and shows the frame.
@@ -178,8 +181,8 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
 - [ ] After `make install`, Finder shows the CropCast icon (not the generic app
       icon) for `/Applications/CropCast.app`; if stale, `touch` the app and
       `killall Finder`.
-- [ ] Opening the menu shows Start Sharing, Show Frame, Presets (Left, Center,
-      Right) and Quit CropCast.
+- [ ] Opening the menu shows Start Sharing, Show Frame, Display (the connected
+      displays), Presets (Left, Center, Right) and Quit CropCast.
 - [ ] Pressing Control-Option-Command-F changes the menu label between
       Show Frame and Hide Frame (check by reopening the menu).
 - [ ] Clicking Show Frame / Start Sharing flips the label on next open.

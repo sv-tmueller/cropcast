@@ -55,6 +55,7 @@ final class SelfTest {
             await scenarioFrameNotShown(frameVisibleBefore: false)
             await scenarioFrameNotShown(frameVisibleBefore: true)
             await scenarioDeny()
+            await scenarioDisplayChoice()
             await scenarioQuit()
         }
     }
@@ -211,6 +212,118 @@ final class SelfTest {
         expect(rig.alerts.log == [.permission], "\(name): the permission alert was logged once (\(rig.alerts.log))")
         expect(rig.stub.startRegions.isEmpty, "\(name): capture never started")
         finish(name, rig)
+    }
+
+    /// The Display submenu through the real menu entries and actions: choosing
+    /// shows the frame on that display and is saved, the menu is disabled and
+    /// inert during a share, and the virtual display is never listed.
+    private func scenarioDisplayChoice() async {
+        let name = "display-choice"
+        let n = displayCount()
+        let rig = makeRig(preflight: true)
+        let overlay = rig.sharing.overlay
+        let defaults = UserDefaults(suiteName: rig.suite)
+        let savedKey = { defaults?.string(forKey: SharingController.chosenSourceDisplayKey) }
+
+        guard let idle = displayMenu(rig) else {
+            expect(false, "\(name): the menu has a Display submenu")
+            finish(name, rig)
+            return
+        }
+        let rows = idle.rows
+        expect(idle.isEnabled, "\(name): Display is enabled while idle")
+        expect(!rows.isEmpty, "\(name): Display lists the connected displays (\(rows.map(\.title)))")
+        expect(rows.filter(\.isChecked).count == 1, "\(name): exactly one display is checked")
+        expect(savedKey() == nil, "\(name): nothing is saved before the user chooses")
+
+        // Show the frame, then choose a display other than the checked one if there is one.
+        rig.menu.apply(.toggleFrame)
+        expect(overlay.isVisible, "\(name): the frame is shown")
+        let checkedKey = rows.first(where: \.isChecked)?.key
+        let other = rows.first { !$0.isChecked }
+        guard let target = other ?? rows.first else {
+            expect(false, "\(name): there is a display to choose")
+            finish(name, rig)
+            return
+        }
+        rig.menu.apply(target.action)
+        expect(
+            overlay.isVisible && overlay.region.map { displayKey($0.displayID) } == target.key,
+            "\(name): choosing puts the frame on the chosen display")
+        expect(savedKey() == target.key, "\(name): the choice is saved")
+        expect(
+            displayMenu(rig)?.rows.first(where: \.isChecked)?.key == target.key,
+            "\(name): the checkmark is on the chosen display")
+        if other == nil {
+            skip("\(name): only one display, the move and checkmark-moved checks are not exercised")
+        } else {
+            expect(checkedKey != target.key, "\(name): the checkmark moved off the previous display")
+        }
+
+        // Option A: choosing while the frame is hidden shows it on the chosen display.
+        rig.menu.apply(.toggleFrame)
+        expect(!overlay.isVisible, "\(name): the frame is hidden")
+        let back = rows.first { $0.key != target.key } ?? target
+        rig.menu.apply(back.action)
+        expect(
+            overlay.isVisible && overlay.region.map { displayKey($0.displayID) } == back.key,
+            "\(name): choosing while hidden shows the frame on the chosen display")
+        expect(rig.sharing.state.isFrameVisible, "\(name): the menu state matches the frame")
+        expect(savedKey() == back.key, "\(name): the second choice is saved")
+
+        // A share uses the chosen display, and the menu is frozen while it runs.
+        rig.menu.apply(.toggleSharing)
+        expect(await waitPhase(rig, .sharing), "\(name): reached sharing")
+        let source = rig.sharing.sessionSource
+        expect(
+            source.map { displayKey($0) } == back.key,
+            "\(name): the session source is the chosen display")
+        let virtualKey = rig.sharing.virtualDisplayID.map { displayKey($0) }
+        if let sharingMenu = displayMenu(rig) {
+            expect(!sharingMenu.isEnabled, "\(name): Display is disabled while sharing")
+            expect(
+                sharingMenu.rows.count == rows.count && !sharingMenu.rows.contains { $0.key == virtualKey },
+                "\(name): the virtual display is not listed (\(sharingMenu.rows.map(\.title)))")
+        } else {
+            expect(false, "\(name): Display submenu while sharing")
+        }
+        rig.menu.apply(.selectDisplay(key: rows.first { $0.key != back.key }?.key ?? "not-a-display"))
+        expect(
+            savedKey() == back.key && rig.sharing.state.chosenDisplayKey == back.key
+                && rig.sharing.sessionSource == source,
+            "\(name): choosing during the share changes nothing")
+
+        rig.menu.apply(.toggleSharing)
+        expect(await waitPhase(rig, .idle), "\(name): back to idle after Stop")
+        // Checked at once: NSScreen can still list the removed virtual display.
+        if let after = displayMenu(rig) {
+            expect(after.isEnabled, "\(name): Display is enabled again after Stop")
+            expect(
+                after.rows.count == rows.count && !after.rows.contains { $0.key == virtualKey },
+                "\(name): the virtual display is not listed right after Stop (\(after.rows.map(\.title)))")
+            expect(after.rows.first(where: \.isChecked)?.key == back.key, "\(name): the choice is kept after Stop")
+        } else {
+            expect(false, "\(name): Display submenu after Stop")
+        }
+        expect(await waitCount(n), "\(name): display count back to \(n) (now \(displayCount()))")
+        finish(name, rig)
+    }
+
+    private typealias DisplayRow = (title: String, key: String, isChecked: Bool, action: MenuAction)
+
+    /// The Display submenu as `StatusMenuController` renders it.
+    private func displayMenu(_ rig: Rig) -> (isEnabled: Bool, rows: [DisplayRow])? {
+        for entry in rig.sharing.menuEntries() {
+            guard case let .submenu("Display", entries, isEnabled) = entry else { continue }
+            let rows = entries.compactMap { row -> DisplayRow? in
+                guard case let .checkable(title, action, isChecked) = row,
+                    case let .selectDisplay(key) = action
+                else { return nil }
+                return (title, key, isChecked, action)
+            }
+            return (isEnabled, rows)
+        }
+        return nil
     }
 
     /// Last: Start, then the real `NSApp.terminate` -> `applicationShouldTerminate`.
