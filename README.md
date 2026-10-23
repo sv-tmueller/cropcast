@@ -161,6 +161,18 @@ re-sign or an ad-hoc build, reset the stale grant and grant it again:
       source checked; choosing the other display moves the frame there, and
       Teams shows that display's content after Start Sharing. The submenu is
       greyed out while sharing.
+- [ ] The Display submenu is greyed out during "Starting…" and "Stopping…" as
+      well, and enabled again once the menu reads "Start Sharing".
+- [ ] The Display choice survives a relaunch: choose the non-default display,
+      quit CropCast, open it again; that display is checked and Show Frame
+      puts the frame on it.
+- [ ] Unplugging the chosen display falls back to the widest connected display
+      (checked, and used by Start Sharing); plugging it back returns the choice
+      without choosing again.
+- [ ] The old preference is ignored: with a different display chosen in the
+      menu, `defaults write com.github.sv-tmueller.cropcast CropCast.lastSourceDisplayKey -string "<other display UUID>"`
+      and relaunch; the checked display is still the one you chose. (Undo with
+      `defaults delete com.github.sv-tmueller.cropcast CropCast.lastSourceDisplayKey`.)
 - [ ] Dragging and resizing the frame, and the Left, Center and Right presets,
       change what Teams shows; the frame border is not visible to viewers.
 - [ ] Control-Option-Command-F hides and shows the frame.
