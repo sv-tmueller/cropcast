@@ -33,13 +33,23 @@ if [[ -n "${CROPCAST_SIGNING_KEYCHAIN:-}" ]]; then
   KC="$CROPCAST_SIGNING_KEYCHAIN"
   SKIP_TRUST=1
 else
-  KC="$(security login-keychain | tr -d ' "')"
+  # Strip only the leading indent and the surrounding quotes; the path may
+  # contain spaces.
+  KC="$(security login-keychain | sed 's/^ *"//; s/"$//')"
 fi
 [[ -f "$KC" ]] || die "keychain not found: $KC"
 
 # Lines look like: 1) <SHA-1> "CropCast Self-Signed" [(CSSMERR_TP_NOT_TRUSTED)]
+# find-identity exits 0 when nothing matches, so a failure is a real lookup
+# error. It must stop the script: treating it as "no identity" would go on to
+# create a second certificate. Only grep (no match) is allowed to fail.
+# Callers must assign the result (`x="$(identity_lines)"`) so that set -e sees
+# the failure; die only ends the command substitution's subshell.
 identity_lines() { # [-v]
-  { security find-identity "$@" -p codesigning "$KC" || true; } | { grep -F "\"$NAME\"" || true; }
+  local out
+  out="$(security find-identity "$@" -p codesigning "$KC")" ||
+    die "could not list code-signing identities in $KC"
+  printf '%s\n' "$out" | { grep -F "\"$NAME\"" || true; }
 }
 count_lines() { # <text>; counts non-empty lines
   printf '%s\n' "$1" | grep -c . || true
@@ -50,10 +60,8 @@ sha_of() { # <identity line>
 
 valid="$(identity_lines -v)"
 if [[ -n "$valid" ]]; then
-  [[ "$(count_lines "$valid")" -eq 1 ]] || die "several valid '$NAME' identities:
-$valid
-Delete the extra ones in Keychain Access (login keychain), then run 'make signing-cert' again."
-  echo "'$NAME' is already set up ($(sha_of "$valid"))"
+  # With several valid identities bundle.sh signs with the first match; so do we.
+  echo "'$NAME' is already set up ($(sha_of "$(printf '%s\n' "$valid" | head -n 1)"))"
   exit 0
 fi
 
@@ -103,7 +111,9 @@ CNF
   # Ten years: an expired certificate silently sends bundle.sh back to ad-hoc.
   "$OPENSSL" req -x509 -config "$TMP/req.cnf" -newkey rsa:2048 -sha256 -days 3650 \
     -set_serial "0x$("$OPENSSL" rand -hex 8)" \
-    -keyout "$TMP/key.pem" -passout env:CROPCAST_CERT_PW -out "$TMP/cert.pem" 2>/dev/null
+    -keyout "$TMP/key.pem" -passout env:CROPCAST_CERT_PW -out "$TMP/cert.pem" 2>"$TMP/req.log" ||
+    die "openssl could not create the certificate:
+$(cat "$TMP/req.log")"
   # Explicit legacy algorithms so `security import` can read the file.
   "$OPENSSL" pkcs12 -export -inkey "$TMP/key.pem" -passin env:CROPCAST_CERT_PW \
     -in "$TMP/cert.pem" -name "$NAME" \
@@ -116,7 +126,8 @@ fi
 
 if [[ "$SKIP_TRUST" -eq 1 ]]; then
   echo "trust skipped (CROPCAST_SIGNING_KEYCHAIN is set)"
-  [[ "$(count_lines "$(identity_lines)")" -eq 1 ]] || die "expected exactly one '$NAME' identity in $KC"
+  seen="$(identity_lines)"
+  [[ "$(count_lines "$seen")" -eq 1 ]] || die "expected exactly one '$NAME' identity in $KC"
   exit 0
 fi
 

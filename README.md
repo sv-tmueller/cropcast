@@ -72,15 +72,18 @@ Manual verification (`make signing-cert`):
       a retry hint; `security find-identity -p codesigning` shows one
       `CSSMERR_TP_NOT_TRUSTED` entry.
 - [ ] `make signing-cert` again: only the trust dialog appears, no second
-      certificate; approve it. Exits 0 and prints the SHA-1.
+      certificate; approve it. Exits 0 and prints the SHA-1, and
+      `security find-identity -v -p codesigning` lists `CropCast Self-Signed`.
 - [ ] `make signing-cert` a third time: prints "already set up", exits 0, no
       dialog. Keychain Access (login, search "CropCast") shows one certificate
       and one key.
 - [ ] `make app`: reports signing with `CropCast Self-Signed`, shows no
       "codesign wants to access key" dialog, and `codesign --verify --strict
-      build/CropCast.app` exits 0 (`codesign -dv` shows no `Signature=adhoc`).
-- [ ] `make install`, reset the grant once, `make install` again: Start Sharing
-      works without the permission alert.
+      build/CropCast.app` exits 0. `codesign -dv build/CropCast.app 2>&1` shows
+      `Authority=CropCast Self-Signed` and no `Signature=adhoc`.
+- [ ] `make install`: prints no ad-hoc note (this checks that the note stays
+      silent on a signed build). Reset the grant once, `make install` again:
+      Start Sharing works without the permission alert.
 - [ ] `ls -d "$TMPDIR"/cropcast-cert.*` matches nothing.
 
 ## Using CropCast with Teams
