@@ -89,10 +89,16 @@ final class SharingController {
     /// Every phase change goes through this property, so one observer covers
     /// Start, a failed or cancelled start, Stop and the quit teardown.
     private(set) var state: AppState {
-        didSet { if state.phase.isLive != oldValue.phase.isLive { liveDidChange() } }
+        didSet {
+            if state.phase.isLive != oldValue.phase.isLive { liveDidChange() }
+            if state.isFrameLocked != oldValue.isFrameLocked { lockDidChange() }
+        }
     }
     /// Called after the live state flipped (the frame style is already updated).
     var onLiveChange: (@MainActor () -> Void)?
+    /// Called after the lock flipped (the frame and the saved setting are already
+    /// updated), with the new value. Not called for the value loaded at launch.
+    var onLockChange: (@MainActor (Bool) -> Void)?
     let overlay: FrameOverlay
     /// The source display of the running session; nil unless a session is up.
     private(set) var sessionSource: CGDirectDisplayID?
@@ -119,9 +125,13 @@ final class SharingController {
 
     init(deps: SharingDependencies) {
         self.deps = deps
+        let locked = LockFrameSetting.load(from: deps.defaults)
         state = AppState(
-            chosenDisplayKey: deps.defaults.string(forKey: Self.chosenSourceDisplayKey))
+            chosenDisplayKey: deps.defaults.string(forKey: Self.chosenSourceDisplayKey),
+            isFrameLocked: locked)
         overlay = FrameOverlay(defaults: deps.defaults)
+        // The loaded value is applied but not written back.
+        overlay.isLocked = locked
         overlay.regionDidChange = { [weak self] region in
             MainActor.assumeIsolated { self?.frameRegionDidChange(region) }
         }
@@ -132,6 +142,20 @@ final class SharingController {
     private func liveDidChange() {
         overlay.style = state.phase.isLive ? .live : .idle
         onLiveChange?()
+    }
+
+    /// The lock is single-sourced in `state`: the overlay, the saved setting and
+    /// the observers all follow its changes, whichever UI flipped it.
+    private func lockDidChange() {
+        overlay.isLocked = state.isFrameLocked
+        LockFrameSetting.save(state.isFrameLocked, to: deps.defaults)
+        onLockChange?(state.isFrameLocked)
+    }
+
+    /// The Settings toggle. Does nothing when the lock already has that value.
+    func setFrameLocked(_ locked: Bool) {
+        guard locked != state.isFrameLocked else { return }
+        state.apply(.toggleFrameLock)
     }
 
     // MARK: Menu and hotkey

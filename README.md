@@ -27,7 +27,7 @@ so use the `.app` for anything involving permissions, and Launch at login is
 unavailable there. CropCast shows a Dock icon by default (see "Settings"
 below). The menu bar icon (a dashed rectangle; while
 sharing is live, the dashed rectangle with a record badge, tinted red) offers Start/Stop Sharing,
-Show/Hide Frame, a Display submenu (the connected displays, one checked), a
+Show/Hide Frame, a checkable Lock Frame item, a Display submenu (the connected displays, one checked), a
 Presets submenu (Left, Center, Right), Settings… and Quit. The global hotkey
 Control-Option-Command-F triggers the same action as Show/Hide Frame. For how
 to share a region in Teams, see "Using CropCast with Teams" below.
@@ -54,6 +54,12 @@ window to the front.
   status read and register or unregister call is logged:
   `/usr/bin/log show --last 10m --style compact --predicate 'subsystem == "com.github.sv-tmueller.cropcast"'`
   (use the full path: in zsh a bare `log` is a shell builtin).
+- **Lock frame** (off by default): while on, the frame cannot be grabbed with
+  the mouse. Clicks and drags on the border go through to the window underneath.
+  Presets, the Display submenu and Show/Hide Frame still work. The same switch
+  is the Lock Frame item in the menu bar menu: the two always show the same
+  state, also while the Settings window is open. The choice is saved
+  (`CropCast.lockFrame`) and survives a relaunch.
 
 The Settings window is one of CropCast's own windows, so it is excluded from
 capture like CropCast's other windows.
@@ -296,7 +302,7 @@ the stale grant by hand and grant it again:
 - [ ] After `make install`, Finder shows the CropCast icon (not the generic app
       icon) for `/Applications/CropCast.app`; if stale, `touch` the app and
       `killall Finder`.
-- [ ] Opening the menu shows Start Sharing, Show Frame, Display (the connected
+- [ ] Opening the menu shows Start Sharing, Show Frame, Lock Frame, Display (the connected
       displays), Presets (Left, Center, Right), Settings… and Quit CropCast.
 - [ ] Pressing Control-Option-Command-F changes the menu label between
       Show Frame and Hide Frame (check by reopening the menu).
@@ -336,5 +342,20 @@ login registers the running bundle's path.
       (before the first registration the reads show `notFound`, raw 3). If
       macOS refuses to register, the text under the switch gives the
       description, domain and code, and the log shows the matching error line.
+- [ ] Lock frame is off on first use (`defaults delete
+      com.github.sv-tmueller.cropcast CropCast.lockFrame` resets it). Turning
+      it on in Settings checks Lock Frame in the menu bar menu; choosing Lock
+      Frame in the menu flips the switch in an open Settings window. Both
+      directions, repeatedly.
+- [ ] With the frame shown and locked, a click or drag on the band, the corner
+      brackets and the edge bars does nothing to the frame, and the click
+      reaches the window underneath it. Presets Left/Center/Right and the
+      Display submenu still move the frame. While sharing, locking and
+      unlocking does not change the shared image or make the frame flicker.
+- [ ] Locking in the middle of a drag stops the drag where it is. Unlocking
+      makes the band draggable again.
+- [ ] Quit and reopen CropCast while locked: Lock Frame is still checked, the
+      Settings switch is on and the frame is still click-through. After
+      `defaults delete` as above, a relaunch starts unlocked.
 - [ ] Quit CropCast from the app menu while sharing tears the session down:
       `system_profiler SPDisplaysDataType | grep -c CropCast` prints 0.
