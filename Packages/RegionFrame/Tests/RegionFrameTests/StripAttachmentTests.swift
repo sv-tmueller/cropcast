@@ -6,16 +6,8 @@ import Testing
 /// so no panel is ordered on screen; real panels work without a run loop.
 @MainActor
 @Suite struct StripAttachmentTests {
-    enum OutsideChange: CaseIterable, CustomTestStringConvertible {
+    enum OutsideChange: CaseIterable {
         case move, resize, moveAndResize
-
-        var testDescription: String {
-            switch self {
-            case .move: "move"
-            case .resize: "resize"
-            case .moveAndResize: "moveAndResize"
-            }
-        }
 
         @MainActor
         func apply(to panel: NSPanel) {
@@ -86,24 +78,27 @@ import Testing
         overlay.apply(preset: .left, on: CGMainDisplayID())
         let left = try framesFollowRegion()
         #expect(calls == 1)
-        overlay.apply(preset: .right, on: CGMainDisplayID())
-        let right = try framesFollowRegion()
-        #expect(right != left)
-        #expect(calls == 2)
 
         // Bottom-right corner drag, inward, through the same path a real mouse uses.
         let delegate = try #require(overlay.panels[0].borderView.delegate)
-        let corner = CGPoint(x: right.rect.maxX - 1, y: right.rect.minY + 1)
+        let corner = CGPoint(x: left.rect.maxX - 1, y: left.rect.minY + 1)
         suite.defaults.removeObject(forKey: "RegionFrame.state.v1")
         delegate.borderMouseDown(at: corner)
         delegate.borderMouseDragged(to: CGPoint(x: corner.x - 320, y: corner.y + 180))
         let dragged = try framesFollowRegion()
-        #expect(dragged.rect != right.rect)
-        #expect(calls == 3)
+        #expect(dragged.rect != left.rect)
+        #expect(calls == 2)
         #expect(suite.defaults.data(forKey: "RegionFrame.state.v1") == nil)
 
         delegate.borderMouseUp()
         #expect(try framesFollowRegion() == dragged)
         #expect(suite.defaults.data(forKey: "RegionFrame.state.v1") != nil)
+
+        // Presets are maximal, so one applied after an inward drag always differs,
+        // even where the left and right presets coincide (any 16:9 display).
+        overlay.apply(preset: .right, on: CGMainDisplayID())
+        let right = try framesFollowRegion()
+        #expect(right != dragged)
+        #expect(calls == 3)
     }
 }

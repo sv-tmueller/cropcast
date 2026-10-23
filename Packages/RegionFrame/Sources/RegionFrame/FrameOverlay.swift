@@ -50,6 +50,7 @@ public final class FrameOverlay {
     private let interaction = InteractionBridge()
     let panels: [BorderPanel]
     private var drag: Drag?
+    /// Suppresses the snap-back backstop for our own synchronous didMove/didResize while laying out the strips.
     private var isPlacing = false
 
     private struct Drag {
