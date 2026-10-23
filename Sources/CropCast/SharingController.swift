@@ -153,7 +153,7 @@ final class SharingController {
             // Choosing always shows the frame, on the chosen display.
             overlay.show(on: display.id)
             state.isFrameVisible = overlay.isVisible
-        case .quit:
+        case .quit, .openSettings:
             break
         }
     }
