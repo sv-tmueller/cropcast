@@ -1,4 +1,4 @@
-.PHONY: app install uninstall test clean
+.PHONY: app install uninstall test clean signing-cert
 
 app:
 	scripts/bundle.sh
@@ -12,6 +12,10 @@ install:
 
 uninstall:
 	scripts/install.sh uninstall
+
+# One-time: create and trust the stable signing certificate (see README).
+signing-cert:
+	scripts/signing-cert.sh
 
 test:
 	scripts/swift-test.sh .
