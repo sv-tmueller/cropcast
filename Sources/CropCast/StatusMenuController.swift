@@ -2,7 +2,7 @@ import AppKit
 import CropCastCore
 
 /// Owns the `NSStatusItem` and renders the menu. The menu is rebuilt from
-/// `AppState.menuEntries()` every time it opens, so labels are always current.
+/// `SharingController.menuEntries()` every time it opens, so labels are always current.
 @MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
     let sharing: SharingController

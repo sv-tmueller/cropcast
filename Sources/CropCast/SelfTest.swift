@@ -219,6 +219,9 @@ final class SelfTest {
     /// inert during a share, and the virtual display is never listed.
     private func scenarioDisplayChoice() async {
         let name = "display-choice"
+        // The previous scenario's virtual display can still be in NSScreen.screens;
+        // this rig does not know it, so it would be listed (and could be the widest).
+        expect(await waitScreensSettled(), "\(name): NSScreen lists only active displays before the snapshot")
         let n = displayCount()
         let rig = makeRig(preflight: true)
         let overlay = rig.sharing.overlay
@@ -290,7 +293,7 @@ final class SelfTest {
         rig.menu.apply(.selectDisplay(key: rows.first { $0.key != back.key }?.key ?? "not-a-display"))
         expect(
             savedKey() == back.key && rig.sharing.state.chosenDisplayKey == back.key
-                && rig.sharing.sessionSource == source,
+                && rig.sharing.sessionSource == source && overlay.region?.displayID == source,
             "\(name): choosing during the share changes nothing")
 
         rig.menu.apply(.toggleSharing)
@@ -461,6 +464,20 @@ final class SelfTest {
 
     private func waitCount(_ expected: Int) async -> Bool {
         await pollUntil(timeout: .seconds(5), interval: .milliseconds(50)) { displayCount() == expected }
+    }
+
+    /// True once every `NSScreen` display id is in the active display list, so a
+    /// removed virtual display is no longer listed. Bounded, well under the watchdog.
+    private func waitScreensSettled() async -> Bool {
+        await pollUntil(timeout: .seconds(5), interval: .milliseconds(50)) {
+            var count: UInt32 = 0
+            CGGetActiveDisplayList(0, nil, &count)
+            var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+            CGGetActiveDisplayList(count, &ids, &count)
+            return NSScreen.screens.allSatisfy { screen in
+                screen.displayID.map { ids.contains($0) } ?? true
+            }
+        }
     }
 
     private func waitPhase(_ rig: Rig, _ phase: SessionPhase) async -> Bool {
