@@ -142,8 +142,9 @@ do_install() {
     echo "Note: this copy is signed ad-hoc, so an earlier Screen Recording grant does not"
     echo "apply to it. To start clean, run:"
     echo "  tccutil reset ScreenCapture $BUNDLE_ID"
-    echo "then re-grant on first launch. A stable signing identity avoids this;"
-    echo "see README.md, \"Stable code signing\"."
+    echo "then re-grant on first launch. A stable signing identity avoids this:"
+    echo "run 'make signing-cert' once, then 'make install' again"
+    echo "(README.md, \"Stable code signing\")."
   fi
   echo
   echo "Launch it with:"

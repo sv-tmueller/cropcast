@@ -33,7 +33,22 @@ For how to share a region in Teams, see "Using CropCast with Teams" below.
 
 macOS binds the Screen Recording permission to the app's code signature. An
 ad-hoc signature changes on every build, so the grant is lost each time. To
-keep it, sign with a stable certificate:
+keep it, sign with a stable certificate. Run once:
+
+    make signing-cert
+
+This creates `CropCast Self-Signed` (RSA 2048, valid 10 years) in your login
+keychain and trusts it for code signing only. macOS asks once for your
+password or Touch ID to change the trust setting; no sudo is needed. Running
+it again changes nothing. If you cancelled the prompt, running it again only
+asks for trust and does not create a second certificate. An expired or
+ambiguous certificate is reported together with how to remove it; the script
+never deletes keychain items itself.
+
+Verify: `security find-identity -v -p codesigning` lists
+`CropCast Self-Signed`.
+
+Manual fallback (Keychain Access), if you prefer not to use the script:
 
 1. Open Keychain Access, then Certificate Assistant, then Create a Certificate.
 2. Name: `CropCast Self-Signed`. Identity Type: Self Signed Root.
@@ -50,6 +65,23 @@ ad-hoc and prints a warning.
 After changing the signing identity, reset the stale grant:
 
     tccutil reset ScreenCapture com.github.sv-tmueller.cropcast
+
+Manual verification (`make signing-cert`):
+
+- [ ] `make signing-cert`, then Cancel at the trust dialog: exits nonzero with
+      a retry hint; `security find-identity -p codesigning` shows one
+      `CSSMERR_TP_NOT_TRUSTED` entry.
+- [ ] `make signing-cert` again: only the trust dialog appears, no second
+      certificate; approve it. Exits 0 and prints the SHA-1.
+- [ ] `make signing-cert` a third time: prints "already set up", exits 0, no
+      dialog. Keychain Access (login, search "CropCast") shows one certificate
+      and one key.
+- [ ] `make app`: reports signing with `CropCast Self-Signed`, shows no
+      "codesign wants to access key" dialog, and `codesign --verify --strict
+      build/CropCast.app` exits 0 (`codesign -dv` shows no `Signature=adhoc`).
+- [ ] `make install`, reset the grant once, `make install` again: Start Sharing
+      works without the permission alert.
+- [ ] `ls -d "$TMPDIR"/cropcast-cert.*` matches nothing.
 
 ## Using CropCast with Teams
 
