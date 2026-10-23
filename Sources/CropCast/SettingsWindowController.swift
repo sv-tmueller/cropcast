@@ -13,17 +13,32 @@ final class SettingsModel: ObservableObject {
 
     private let defaults: UserDefaults
     private let loginItem: any LoginItemService
-    private var loginError: String?
+    /// Why the last flip failed, kept until a status read shows the requested state.
+    private var loginNote: LoginItemNote?
+    /// Set after a call that did not throw: the wanted state to check the next reads against.
+    private var pendingCheck: Bool?
+    /// Bumped on every flip, so a delayed re-read of an older flip does nothing.
+    private var flipGeneration = 0
 
     init(defaults: UserDefaults, loginItem: any LoginItemService) {
         self.defaults = defaults
         self.loginItem = loginItem
         showInDock = DockSetting.load(from: defaults)
-        loginRow = LoginItemRow.make(status: loginItem.status, error: nil)
+        loginRow = LoginItemRow.make(status: loginItem.status, isAppBundle: loginItem.isAppBundle, error: nil)
     }
 
     func refresh() {
-        loginRow = LoginItemRow.make(status: loginItem.status, error: loginError)
+        applyStatus(loginItem.status)
+    }
+
+    private func applyStatus(_ status: LoginItemStatus) {
+        if let pending = pendingCheck {
+            loginNote = LoginItemNote.check(wantOn: pending, status: status)
+        } else if let note = loginNote, note.isResolved(by: status) {
+            loginNote = nil
+        }
+        loginRow = LoginItemRow.make(
+            status: status, isAppBundle: loginItem.isAppBundle, error: loginNote?.text)
     }
 
     func setShowInDock(_ isShown: Bool) {
@@ -34,18 +49,37 @@ final class SettingsModel: ObservableObject {
     }
 
     func setLaunchAtLogin(_ wantOn: Bool) {
-        loginError = nil
+        flipGeneration += 1
+        let generation = flipGeneration
+        loginNote = nil
+        pendingCheck = nil
         do {
-            switch LoginItemCommand.for(wantOn: wantOn, status: loginItem.status) {
-            case .register: try loginItem.register()
-            case .unregister: try loginItem.unregister()
+            switch LoginItemCommand.for(wantOn: wantOn, status: loginItem.status, isAppBundle: loginItem.isAppBundle) {
+            case .register:
+                try loginItem.register()
+                pendingCheck = wantOn
+            case .unregister:
+                try loginItem.unregister()
+                pendingCheck = wantOn
             case .openLoginItems: loginItem.openSystemSettings()
             case .none: break
             }
         } catch {
-            loginError = error.localizedDescription
+            let ns = error as NSError
+            loginNote = LoginItemNote.failure(
+                wantOn: wantOn, domain: ns.domain, code: ns.code, description: ns.localizedDescription)
         }
         refresh()
+        // The system can lag behind the call, so read once more shortly after.
+        guard pendingCheck != nil else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self, self.flipGeneration == generation else { return }
+            self.refresh()
+            // Later reads (window focus) only resolve the note; a change made
+            // in System Settings must not read as a failed call.
+            self.pendingCheck = nil
+        }
     }
 
     func openLoginItems() {
