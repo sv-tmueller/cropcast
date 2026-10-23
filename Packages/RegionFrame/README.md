@@ -34,6 +34,14 @@ are verified by hand with the demo.
   `regionDidChange`, never writes `RegionFrame.state.v1` and never recreates a
   panel, so `windowNumbers` stay valid for a capture filter that lists them once.
   It can be set while the frame is hidden and survives hide, show and presets.
+- **Lock** (`isLocked`, off by default): while true the four panels ignore the
+  mouse (`ignoresMouseEvents`), so clicks and drags on the band reach the app
+  underneath, and a drag in progress is cancelled where it stands (the frame
+  stays at the last step, nothing is saved). It only blocks the mouse:
+  `show(on:)`, `hide()` and `apply(preset:on:)` still work. Like `style`, it never
+  recreates a panel, never fires `regionDidChange` and never writes
+  `RegionFrame.state.v1`, so `windowNumbers` stay valid. RegionFrame does not
+  persist it; the app owns that.
 
 ## API
 
@@ -44,6 +52,7 @@ overlay.show(on: displayID)
 overlay.apply(preset: .right, on: displayID)
 overlay.hide()
 overlay.style = .live   // red while sharing; .idle (blue) is the default
+overlay.isLocked = true // click-through; the frame can no longer be grabbed
 overlay.windowNumbers   // 4 panel window numbers, stable across show/hide
 ```
 
@@ -78,6 +87,7 @@ $D --list                                  # displays: id and frames
 $D --display 1 --preset right --seconds 5  # a display id from --list (id=, not a position)
 $D --display 1 --cycle-presets --seconds 4 # left, center, right, once per second
 $D --display 1 --live --seconds 5          # red band and handles instead of blue
+$D --display 1 --locked                    # click-through band, cannot be dragged
 $D --reset --display 1 --seconds 1         # forget saved regions first
 $D                                         # run until Ctrl-C, drag by hand
 ```
@@ -123,3 +133,8 @@ Run `regionframe-demo` (no `--seconds`) and check, on every connected display:
       same command without `--live` shows blue ones.
 - [ ] In the app while sharing, the red border is visible on the source display
       and Teams viewers do not see it.
+- [ ] `--display <id> --locked`: the band and handles cannot be dragged, and a
+      click on the band reaches the window underneath it (it comes to the front).
+- [ ] `--display <id> --locked --cycle-presets --seconds 4` still moves the frame
+      left, centre, right while locked.
+- [ ] Relaunch without `--locked`: the band can be dragged and resized again.
