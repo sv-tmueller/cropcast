@@ -4,6 +4,7 @@ import AppKit
 import CoreGraphics
 import CropCastCore
 import Foundation
+import RegionFrame
 import RegionMirror
 
 /// `CropCast --self-test` (debug builds only): drives the real Start, Stop and
@@ -69,9 +70,12 @@ final class SelfTest {
         let rig = makeRig(preflight: true)
         say("[\(name)] active displays before: \(n)")
 
+        checkLive(rig, live: false, "\(name): before Start")
         rig.menu.apply(.toggleSharing)
         expect(rig.sharing.state.phase == .starting, "\(name): phase is starting right after Start")
+        checkLive(rig, live: true, "\(name): right after Start")
         expect(await waitPhase(rig, .sharing), "\(name): reached sharing")
+        checkLive(rig, live: true, "\(name): while sharing")
         expect(await waitCount(n + 1), "\(name): display count \(n) -> \(n + 1) (now \(displayCount()))")
         expect(rig.alerts.log.isEmpty, "\(name): no alert (\(rig.alerts.log))")
 
@@ -99,12 +103,26 @@ final class SelfTest {
                 "\(name): capture started once with the frame's region")
 
             await checkPresetUpdatesCapture(rig, name)
+            checkLive(rig, live: true, "\(name): after a preset during the share")
+
+            // Hiding and showing the frame during a share keeps it red.
+            rig.menu.apply(.toggleFrame)
+            expect(!overlay.isVisible, "\(name): the frame is hidden during the share")
+            checkLive(rig, live: true, "\(name): while the frame is hidden")
+            rig.menu.apply(.toggleFrame)
+            expect(
+                overlay.isVisible && overlay.region?.displayID == source,
+                "\(name): the frame is visible on the source display again")
+            checkLive(rig, live: true, "\(name): after the frame is shown again")
         } else {
             expect(false, "\(name): no virtual display or source display in the session")
         }
 
         rig.menu.apply(.toggleSharing)
+        expect(rig.sharing.state.phase == .stopping, "\(name): phase is stopping right after Stop")
+        checkLive(rig, live: true, "\(name): right after Stop")
         expect(await waitPhase(rig, .idle), "\(name): back to idle after Stop")
+        checkLive(rig, live: false, "\(name): after Stop")
         expect(await waitCount(n), "\(name): display count back to \(n) (now \(displayCount()))")
         expect(visibleWindows().isEmpty, "\(name): no visible windows after Stop (\(visibleWindows().count))")
         expect(rig.stub.stopCount == 1, "\(name): capture stopped once")
@@ -139,7 +157,9 @@ final class SelfTest {
         let rig = makeRig(preflight: true, failAt: step, captureError: captureError)
 
         rig.menu.apply(.toggleSharing)
+        checkLive(rig, live: true, "\(name): right after Start")
         expect(await waitPhase(rig, .idle), "\(name): back to idle")
+        checkLive(rig, live: false, "\(name): after the failed Start")
         expect(await waitCount(n), "\(name): display count \(n) -> \(n) (now \(displayCount()))")
         expect(visibleWindows().isEmpty, "\(name): no visible windows (\(visibleWindows().count))")
         expect(!rig.sharing.overlay.isVisible, "\(name): frame hidden")
@@ -166,7 +186,10 @@ final class SelfTest {
         let regionBefore = overlay.region
 
         rig.menu.apply(.toggleSharing)
+        checkLive(rig, live: true, "\(name): right after Start")
         expect(await waitPhase(rig, .idle), "\(name): back to idle")
+        // The key check: a failed Start leaves the visible frame blue, not red.
+        checkLive(rig, live: false, "\(name): after the failed Start")
         expect(await waitCount(n), "\(name): display count \(n) -> \(n) (now \(displayCount()))")
         expect(
             Set(visibleWindows().map(\.windowNumber)) == panels,
@@ -206,7 +229,9 @@ final class SelfTest {
         let n = displayCount()
         let rig = makeRig(preflight: nil)
         rig.menu.apply(.toggleSharing)
+        checkLive(rig, live: true, "\(name): right after Start")
         expect(await waitPhase(rig, .idle), "\(name): back to idle")
+        checkLive(rig, live: false, "\(name): after the denied Start")
         expect(await waitCount(n), "\(name): display count \(n) -> \(n) (now \(displayCount()))")
         expect(visibleWindows().isEmpty, "\(name): no visible windows")
         expect(rig.alerts.log == [.permission], "\(name): the permission alert was logged once (\(rig.alerts.log))")
@@ -273,10 +298,14 @@ final class SelfTest {
             "\(name): choosing while hidden shows the frame on the chosen display")
         expect(rig.sharing.state.isFrameVisible, "\(name): the menu state matches the frame")
         expect(savedKey() == back.key, "\(name): the second choice is saved")
+        checkLive(rig, live: false, "\(name): after choosing a display while idle")
+        rig.menu.apply(.selectPreset(.center))
+        checkLive(rig, live: false, "\(name): after a preset while idle")
 
         // A share uses the chosen display, and the menu is frozen while it runs.
         rig.menu.apply(.toggleSharing)
         expect(await waitPhase(rig, .sharing), "\(name): reached sharing")
+        checkLive(rig, live: true, "\(name): while sharing")
         let source = rig.sharing.sessionSource
         expect(
             source.map { displayKey($0) } == back.key,
@@ -298,6 +327,7 @@ final class SelfTest {
 
         rig.menu.apply(.toggleSharing)
         expect(await waitPhase(rig, .idle), "\(name): back to idle after Stop")
+        checkLive(rig, live: false, "\(name): after Stop")
         // Checked at once: NSScreen can still list the removed virtual display.
         if let after = displayMenu(rig) {
             expect(after.isEnabled, "\(name): Display is enabled again after Stop")
@@ -310,6 +340,17 @@ final class SelfTest {
         }
         expect(await waitCount(n), "\(name): display count back to \(n) (now \(displayCount()))")
         finish(name, rig)
+    }
+
+    /// The frame style and the menu bar icon both follow the live state.
+    private func checkLive(_ rig: Rig, live: Bool, _ what: String) {
+        expect(
+            rig.sharing.overlay.style == (live ? .live : .idle),
+            "\(what): the frame is \(live ? "red (live)" : "blue (idle)")")
+        let icon: StatusIcon = live ? .live : .idle
+        expect(
+            rig.menu.statusItem.button?.image?.accessibilityDescription == icon.accessibilityDescription,
+            "\(what): the menu bar icon is \(live ? "the live" : "the idle") one")
     }
 
     private typealias DisplayRow = (title: String, key: String, isChecked: Bool, action: MenuAction)
@@ -339,6 +380,7 @@ final class SelfTest {
         rig.menu.apply(.toggleSharing)
         let sharing = await waitPhase(rig, .sharing)
         expect(sharing, "\(name): reached sharing")
+        checkLive(rig, live: true, "\(name): while sharing")
         expect(await waitCount(n + 1), "\(name): display count \(n) -> \(n + 1) (now \(displayCount()))")
         guard sharing else {
             say("SELF-TEST FAIL: \(failures) of \(checks) checks failed")
@@ -348,6 +390,7 @@ final class SelfTest {
         rig.sharing.onQuitTeardownFinished = { [self] in
             expect(await waitCount(n), "\(name): display count \(n + 1) -> \(n) after Quit (now \(displayCount()))")
             expect(rig.sharing.state.phase == .idle, "\(name): idle after teardown")
+            checkLive(rig, live: false, "\(name): after the quit teardown")
             expect(visibleWindows().isEmpty, "\(name): no visible windows")
             expect(rig.stub.stopCount == 1, "\(name): capture stopped once")
             finish(name, rig)

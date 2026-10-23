@@ -32,6 +32,20 @@ public enum MenuEntry: Sendable, Equatable {
     case submenu(title: String, entries: [MenuEntry], isEnabled: Bool = true)
 }
 
+/// The menu bar icon for a state: an SF Symbol name and its accessibility
+/// description. The app renders it as a template image.
+public struct StatusIcon: Sendable, Equatable {
+    public let symbolName: String
+    public let accessibilityDescription: String
+    public let isLive: Bool
+
+    public static let idle = StatusIcon(
+        symbolName: "rectangle.dashed", accessibilityDescription: "CropCast", isLive: false)
+    public static let live = StatusIcon(
+        symbolName: "rectangle.dashed.badge.record",
+        accessibilityDescription: "CropCast, sharing live", isLive: true)
+}
+
 /// App-level state shown in the menu bar. Pure Swift: no AppKit.
 public struct AppState: Sendable, Equatable {
     public private(set) var session = SessionMachine()
@@ -48,6 +62,8 @@ public struct AppState: Sendable, Equatable {
 
     public var phase: SessionPhase { session.phase }
     public var isSharing: Bool { phase == .sharing }
+    /// The menu bar icon: badged from Starting… through Stopping…, plain when idle.
+    public var statusIcon: StatusIcon { phase.isLive ? .live : .idle }
     /// The source display can only change while no session is running.
     public var canChooseDisplay: Bool { phase == .idle }
 

@@ -2,6 +2,18 @@ public enum SessionPhase: Sendable, Equatable {
     case idle, starting, sharing, stopping
 }
 
+extension SessionPhase {
+    /// True from the start request until the session is fully stopped
+    /// (Starting…, Sharing and Stopping…). The frame is red and the menu bar
+    /// icon badged exactly while this holds.
+    public var isLive: Bool {
+        switch self {
+        case .idle: false
+        case .starting, .sharing, .stopping: true
+        }
+    }
+}
+
 public enum SessionEvent: Sendable, Equatable {
     /// The user chose Start/Stop Sharing.
     case toggleSharing
