@@ -47,8 +47,8 @@ window to the front.
   real system state, so a change made in System Settings > General > Login
   Items appears when the Settings window regains focus.
 
-The Settings window is one of CropCast's own windows, so it is never captured
-or shared.
+The Settings window is one of CropCast's own windows, so it is excluded from
+capture like CropCast's other windows.
 
 ## Stable code signing
 
@@ -243,10 +243,14 @@ the stale grant by hand and grant it again:
 - [ ] Unplugging the chosen display falls back to the widest connected display
       (checked, and used by Start Sharing); plugging it back returns the choice
       without choosing again.
-- [ ] The old preference is ignored: with a different display chosen in the
-      menu, `defaults write com.github.sv-tmueller.cropcast CropCast.lastSourceDisplayKey -string "<other display UUID>"`
-      and relaunch; the checked display is still the one you chose. (Undo with
-      `defaults delete com.github.sv-tmueller.cropcast CropCast.lastSourceDisplayKey`.)
+- [ ] The old preference is ignored when nothing is chosen: choose the narrower
+      display, then read its UUID with
+      `defaults read com.github.sv-tmueller.cropcast CropCast.chosenSourceDisplayKey`
+      and quit CropCast. Run
+      `defaults delete com.github.sv-tmueller.cropcast CropCast.chosenSourceDisplayKey`
+      and
+      `defaults write com.github.sv-tmueller.cropcast CropCast.lastSourceDisplayKey -string <that UUID>`,
+      then open CropCast. The widest display is checked.
 - [ ] Dragging and resizing the frame, and the Left, Center and Right presets,
       change what Teams shows; the frame border is not visible to viewers.
 - [ ] Control-Option-Command-F hides and shows the frame.
@@ -289,7 +293,8 @@ login registers the running bundle's path.
 - [ ] Show in Dock off: the Dock icon goes at once, Settings stays open and in
       front, and the menu bar menu still works. After a relaunch there is
       still no Dock icon, and Settings… still opens the window in front.
-- [ ] Show in Dock on again: the Dock icon appears at once.
+- [ ] Show in Dock on again: the Dock icon appears at once, and the app menu
+      (Settings…, Quit CropCast) shows once CropCast is active.
 - [ ] Launch at login matches System Settings > General > Login Items: on adds
       CropCast there, off removes it, and a change made in System Settings
       shows when Settings regains focus. After logging out and in with it on,
