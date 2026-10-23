@@ -5,26 +5,30 @@ public struct DisplayCandidate: Sendable, Equatable {
     public var id: UInt32
     /// Stable identity across launches (the display UUID string).
     public var key: String
+    /// `NSScreen.localizedName`, shown in the Display menu.
+    public var name: String
     /// `NSScreen.frame.width`.
     public var width: Double
 
-    public init(id: UInt32, key: String, width: Double) {
+    public init(id: UInt32, key: String, name: String, width: Double) {
         self.id = id
         self.key = key
+        self.name = name
         self.width = width
     }
 }
 
 /// Which physical display CropCast captures from.
 public enum SourceDisplayChoice {
-    /// The last used display if it is still connected, else the widest one
-    /// (a width tie goes to the first listed). `excluding` (the virtual
-    /// display) is never chosen. Returns nil if nothing is left.
+    /// The display chosen in the Display menu if it is still connected, else
+    /// the widest one (a width tie goes to the first listed). `excluding`
+    /// (every virtual display this process created) is never chosen. Returns
+    /// nil if nothing is left.
     public static func pick(
-        from displays: [DisplayCandidate], excluding: UInt32?, lastUsedKey: String?
+        from displays: [DisplayCandidate], excluding: Set<UInt32>, chosenKey: String?
     ) -> UInt32? {
-        let candidates = displays.filter { $0.id != excluding }
-        if let lastUsedKey, let match = candidates.first(where: { $0.key == lastUsedKey }) {
+        let candidates = displays.filter { !excluding.contains($0.id) }
+        if let chosenKey, let match = candidates.first(where: { $0.key == chosenKey }) {
             return match.id
         }
         var widest: DisplayCandidate?

@@ -5,37 +5,51 @@ import Testing
 @Suite("SourceDisplayChoice")
 struct SourceDisplayChoiceTests {
     private func d(_ id: UInt32, _ key: String, _ width: Double) -> DisplayCandidate {
-        DisplayCandidate(id: id, key: key, width: width)
+        DisplayCandidate(id: id, key: key, name: "Display \(key)", width: width)
     }
 
-    @Test func lastUsedWinsWhenConnected() {
+    @Test func chosenWinsWhenConnected() {
         let displays = [d(1, "A", 5120), d(2, "B", 1920)]
-        #expect(SourceDisplayChoice.pick(from: displays, excluding: nil, lastUsedKey: "B") == 2)
+        #expect(SourceDisplayChoice.pick(from: displays, excluding: [], chosenKey: "B") == 2)
     }
 
-    @Test func missingLastUsedFallsBackToWidest() {
+    @Test func missingChosenFallsBackToWidest() {
         let displays = [d(1, "A", 1920), d(2, "B", 5120)]
-        #expect(SourceDisplayChoice.pick(from: displays, excluding: nil, lastUsedKey: "gone") == 2)
+        #expect(SourceDisplayChoice.pick(from: displays, excluding: [], chosenKey: "gone") == 2)
     }
 
-    @Test func noLastUsedPicksWidest() {
+    @Test func chosenWinsAgainOnceItIsBack() {
+        let wide = d(2, "B", 5120)
+        let small = d(1, "A", 1920)
+        #expect(SourceDisplayChoice.pick(from: [wide], excluding: [], chosenKey: "A") == 2)
+        #expect(SourceDisplayChoice.pick(from: [small, wide], excluding: [], chosenKey: "A") == 1)
+    }
+
+    @Test func noChosenPicksWidest() {
         let displays = [d(1, "A", 1920), d(2, "B", 5120), d(3, "C", 2560)]
-        #expect(SourceDisplayChoice.pick(from: displays, excluding: nil, lastUsedKey: nil) == 2)
+        #expect(SourceDisplayChoice.pick(from: displays, excluding: [], chosenKey: nil) == 2)
     }
 
     @Test func widthTieGoesToTheFirstListed() {
         let displays = [d(7, "A", 2560), d(3, "B", 2560)]
-        #expect(SourceDisplayChoice.pick(from: displays, excluding: nil, lastUsedKey: nil) == 7)
+        #expect(SourceDisplayChoice.pick(from: displays, excluding: [], chosenKey: nil) == 7)
     }
 
-    @Test func neverPicksTheExcludedDisplayEvenWhenWidestAndLastUsed() {
+    @Test func neverPicksTheExcludedDisplayEvenWhenWidestAndChosen() {
         let displays = [d(9, "V", 9000), d(1, "A", 1920)]
-        #expect(SourceDisplayChoice.pick(from: displays, excluding: 9, lastUsedKey: "V") == 1)
+        #expect(SourceDisplayChoice.pick(from: displays, excluding: [9], chosenKey: "V") == 1)
+    }
+
+    @Test func skipsEveryExcludedDisplay() {
+        // An earlier virtual display that NSScreen still lists, plus the current one.
+        let displays = [d(8, "V1", 9000), d(9, "V2", 8000), d(1, "A", 1920)]
+        #expect(SourceDisplayChoice.pick(from: displays, excluding: [8, 9], chosenKey: nil) == 1)
+        #expect(SourceDisplayChoice.pick(from: displays, excluding: [8], chosenKey: nil) == 9)
     }
 
     @Test func nothingLeftReturnsNil() {
-        #expect(SourceDisplayChoice.pick(from: [d(9, "V", 2560)], excluding: 9, lastUsedKey: nil) == nil)
-        #expect(SourceDisplayChoice.pick(from: [], excluding: nil, lastUsedKey: nil) == nil)
+        #expect(SourceDisplayChoice.pick(from: [d(9, "V", 2560)], excluding: [9], chosenKey: nil) == nil)
+        #expect(SourceDisplayChoice.pick(from: [], excluding: [], chosenKey: nil) == nil)
     }
 }
 
