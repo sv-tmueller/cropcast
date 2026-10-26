@@ -23,18 +23,29 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         statusItem.menu = menu
     }
 
-    /// The icon follows `AppState.statusIcon`. It stays a template image so the
-    /// menu bar draws it in light and dark mode; the badge shape tells the state
-    /// even where the red tint is ignored.
+    /// The icon follows `AppState.statusIcon`. Idle is a template image, so the
+    /// menu bar draws it in light and dark mode. Live uses a palette symbol:
+    /// the record badge in red and the dashed rectangle in `labelColor`, which
+    /// resolves at draw time and so follows the menu bar's appearance. A
+    /// template image cannot carry a red part, and a tint on the button is not
+    /// reliably honored by the menu bar.
     private func applyIcon() {
         guard let button = statusItem.button else { return }
         let icon = sharing.state.statusIcon
-        let image = NSImage(
+        let symbol = NSImage(
             systemSymbolName: icon.symbolName,
             accessibilityDescription: icon.accessibilityDescription)
-        image?.isTemplate = true
-        button.image = image
-        button.contentTintColor = icon.isLive ? .systemRed : nil
+        switch icon.rendering {
+        case .template:
+            symbol?.isTemplate = true
+            button.image = symbol
+        case .redBadge:
+            // Palette layer 0 is the record badge, layer 1 the dashed rectangle (checked on macOS 26.6).
+            let image = symbol?.withSymbolConfiguration(
+                .init(paletteColors: [.systemRed, .labelColor]))
+            image?.isTemplate = false
+            button.image = image
+        }
     }
 
     /// Single entry point for menu clicks and the hotkey.

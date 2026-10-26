@@ -378,6 +378,11 @@ struct AppStateTests {
         #expect(StatusIcon.idle.symbolName != StatusIcon.live.symbolName)
         #expect(StatusIcon.idle.accessibilityDescription != StatusIcon.live.accessibilityDescription)
     }
+
+    @Test func idleRendersAsTemplateAndLiveWithRedBadge() {
+        #expect(StatusIcon.idle.rendering == .template)
+        #expect(StatusIcon.live.rendering == .redBadge)
+    }
 }
 
 @Suite("StartFailureMessage")
