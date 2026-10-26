@@ -26,7 +26,7 @@ Status: in development. Design: `docs/superpowers/specs/2026-10-22-cropcast-desi
 so use the `.app` for anything involving permissions, and Launch at login is
 unavailable there. CropCast shows a Dock icon by default (see "Settings"
 below). The menu bar icon (a dashed rectangle; while
-sharing is live, the dashed rectangle with a record badge, tinted red) offers Start/Stop Sharing,
+sharing is live, the dashed rectangle with a record badge in red) offers Start/Stop Sharing,
 Show/Hide Frame, a checkable Lock Frame item, a Display submenu (the connected
 displays, one checked), a Presets submenu (Left, Center, Right), Settings… and
 Quit. The global hotkey Control-Option-Command-F triggers the same action as
@@ -181,7 +181,7 @@ the stale grant by hand and grant it again:
    Settings) and choose **Start Sharing**.
    The item reads "Starting…" while the session comes up, then "Stop Sharing".
    From "Starting…" until the session has fully stopped, the frame turns red and
-   the menu bar icon shows the dashed rectangle with a record badge, tinted red;
+   the menu bar icon shows the dashed rectangle with the record badge in red;
    both are back to normal (blue frame, plain dashed rectangle) when idle, also after a failed Start. Red
    means the CropCast session is live: macOS gives no way to tell whether Teams
    is actually viewing it.
@@ -311,10 +311,21 @@ the stale grant by hand and grant it again:
 - [ ] Clicking Show Frame / Start Sharing flips the label on next open.
 - [ ] Quit CropCast (or Command-Q with the menu open) terminates the app.
 - [ ] While sharing is live ("Starting…" to "Stopping…"), the menu bar shows
-      the dashed rectangle with a record badge, tinted red; when idle, the
-      plain dashed rectangle. If the menu bar ignores the tint, the badge shape
-      alone shows the state. Both are readable in light and dark mode and while the
-      menu is open.
+      the dashed rectangle with the record badge in red; when idle, the plain
+      dashed rectangle, unchanged. The rectangle follows the menu bar, the badge
+      stays red.
+- [ ] Black wallpaper while live: the rectangle is as bright as the idle icon
+      and the badge is red.
+- [ ] White wallpaper while live: the rectangle is dark and the badge is red.
+- [ ] Cross-check: system Light with a black wallpaper, and system Dark with a
+      white wallpaper. The rectangle still contrasts with the menu bar (this
+      confirms the status button follows the menu bar, not the system setting).
+- [ ] Switching Light/Dark or the wallpaper while live redraws the icon without
+      a restart.
+- [ ] The idle icon looks the same as before.
+- [ ] The live icon is readable with the menu open.
+- [ ] Secondary display: note what you see. The live icon may not dim in an
+      inactive menu bar the way template icons do; dimming is not required.
 
 ## Manual verification (Settings)
 

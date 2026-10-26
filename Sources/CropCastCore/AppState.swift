@@ -34,18 +34,28 @@ public enum MenuEntry: Sendable, Equatable {
     case submenu(title: String, entries: [MenuEntry], isEnabled: Bool = true)
 }
 
-/// The menu bar icon for a state: an SF Symbol name and its accessibility
-/// description. The app renders it as a template image.
+/// The menu bar icon for a state: an SF Symbol name, its accessibility
+/// description, and how the app renders it. `.template` is a plain template
+/// image that the menu bar tints for light and dark. `.redBadge` colors the
+/// record badge red and keeps the dashed rectangle in the label color.
 public struct StatusIcon: Sendable, Equatable {
+    public enum Rendering: Sendable, Equatable {
+        case template
+        case redBadge
+    }
+
     public let symbolName: String
     public let accessibilityDescription: String
     public let isLive: Bool
+    public let rendering: Rendering
 
     public static let idle = StatusIcon(
-        symbolName: "rectangle.dashed", accessibilityDescription: "CropCast", isLive: false)
+        symbolName: "rectangle.dashed", accessibilityDescription: "CropCast", isLive: false,
+        rendering: .template)
     public static let live = StatusIcon(
         symbolName: "rectangle.dashed.badge.record",
-        accessibilityDescription: "CropCast, sharing live", isLive: true)
+        accessibilityDescription: "CropCast, sharing live", isLive: true,
+        rendering: .redBadge)
 }
 
 /// App-level state shown in the menu bar. Pure Swift: no AppKit.
