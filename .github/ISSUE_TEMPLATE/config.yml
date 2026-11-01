@@ -1,0 +1,8 @@
+# Hide the "blank issue" button for everyone. Combined with the lockdown
+# workflow and interaction limits this makes it obvious that issues are
+# owner-only before anyone starts typing.
+blank_issues_enabled: false
+contact_links:
+  - name: This repository is owner-maintained
+    url: https://github.com/sv-tmueller
+    about: Issues and pull requests from non-collaborators are closed automatically.
