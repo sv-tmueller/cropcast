@@ -1,0 +1,55 @@
+# Owner-only issues and pull requests.
+#
+# Why this exists: GitHub has no permanent "collaborators only" switch for
+# issues and PRs on personal repositories. Interaction limits do that, but
+# expire after at most six months. This workflow is the permanent layer:
+# anything opened by someone other than the owner gets a short comment,
+# is closed, and is locked.
+#
+# Safety notes:
+# - pull_request_target runs in the context of the base branch with a write
+#   token. This job never checks out or executes PR code, so that is safe.
+# - Add trusted bots to ALLOWED_ACTORS (space separated), e.g.
+#   "sv-tmueller dependabot[bot]" if you use Dependabot.
+name: Lockdown (owner-only issues and PRs)
+
+on:
+  issues:
+    types: [opened, reopened]
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+env:
+  ALLOWED_ACTORS: "${{ github.repository_owner }}"
+
+jobs:
+  lockdown:
+    if: github.event.sender.login != github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close and lock if the author is not allowed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.event.sender.login }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          KIND: ${{ github.event_name == 'issues' && 'issue' || 'pr' }}
+        run: |
+          for a in $ALLOWED_ACTORS; do
+            if [ "$a" = "$ACTOR" ]; then
+              echo "Actor $ACTOR is allowed, nothing to do."
+              exit 0
+            fi
+          done
+          MSG="Thanks for your interest. This repository is maintained by its owner only and does not accept external issues or pull requests. It is published for reference (see LICENSE). Closing automatically."
+          gh "$KIND" comment "$NUMBER" --repo "$REPO" --body "$MSG"
+          if [ "$KIND" = "pr" ]; then
+            gh pr close "$NUMBER" --repo "$REPO"
+          else
+            gh issue close "$NUMBER" --repo "$REPO" --reason "not planned"
+          fi
+          gh api -X PUT "repos/$REPO/issues/$NUMBER/lock" -f lock_reason=off-topic
