@@ -6,7 +6,8 @@ import RegionMirror
 /// Manual verification demo for the RegionMirror module.
 ///
 /// Mirrors a 16:9 region of a display into a window (or full-screen on another
-/// display with `--target`), moving the region every 2 seconds.
+/// display with `--target`), moving the region every 2 seconds, or keeping it
+/// still with `--static`.
 @main
 @MainActor
 struct RegionMirrorDemo {
@@ -15,11 +16,12 @@ struct RegionMirrorDemo {
         var source: CGDirectDisplayID = CGMainDisplayID()
         var seconds: Int?
         var requestPermission = false
+        var isStatic = false
     }
 
     static let usage = """
         usage: regionmirror-demo [--target <displayID>] [--source <displayID>] \
-        [--seconds N] [--request-permission]
+        [--seconds N] [--static] [--request-permission]
         """
 
     static func parse(_ arguments: [String]) -> Options? {
@@ -36,6 +38,8 @@ struct RegionMirrorDemo {
             case "--seconds":
                 guard let value = iterator.next().flatMap({ Int($0) }), value > 0 else { return nil }
                 options.seconds = value
+            case "--static":
+                options.isStatic = true
             case "--request-permission":
                 options.requestPermission = true
             default:
@@ -117,6 +121,9 @@ struct RegionMirrorDemo {
         }
 
         let positions = regionPositions(in: sourceFrame)
+        // --static starts at the right-hand position, away from the demo window
+        // (which overlaps positions[0]), and never moves the region.
+        let startPosition = options.isStatic ? positions.count - 1 : 0
         let capture = RegionCapture(sourceDisplayID: options.source)
         capture.onStop = { error in
             print("stream stopped: \(error.localizedDescription)")
@@ -124,22 +131,23 @@ struct RegionMirrorDemo {
         }
 
         do {
-            try await capture.start(region: positions[0], renderer: renderer.videoRenderer)
+            try await capture.start(
+                region: positions[startPosition], renderer: renderer.videoRenderer)
         } catch {
             fail("start failed: \(error.localizedDescription)")
         }
-        print("capturing display \(options.source), region \(positions[0])")
+        print("capturing display \(options.source), region \(positions[startPosition])")
 
         var latencies: [String] = []
         var lastFrames = 0
         var tick = 0
-        var index = 0
+        var index = startPosition
         var direction = 1
         let clock = ContinuousClock()
         while options.seconds.map({ tick < $0 }) ?? true {
             try? await Task.sleep(for: .seconds(1))
             tick += 1
-            if tick % 2 == 0 {
+            if tick % 2 == 0 && !options.isStatic {
                 if index + direction < 0 || index + direction >= positions.count { direction = -direction }
                 index += direction
                 let start = clock.now
