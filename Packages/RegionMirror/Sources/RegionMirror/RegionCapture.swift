@@ -76,6 +76,7 @@ public final class RegionCapture {
             // before committing if the ids changed.
             var appliedExtraWindowIDs = extraExcludedWindowIDs
             let filter = makeFilter(display: display, content: content)
+            var appliedSourceRect = sourceRect
             let configuration = settings.makeConfiguration(sourceRect: sourceRect)
 
             let output = StreamOutput(renderer: renderer) { [weak self] error in
@@ -94,6 +95,7 @@ public final class RegionCapture {
             while true {
                 guard lifecycle.isCurrent(token) else { throw RegionMirrorError.notRunning }
                 if let pending = lifecycle.takePendingRegion(token) {
+                    appliedSourceRect = pending
                     // updateConfiguration replaces the whole configuration.
                     try await stream.updateConfiguration(
                         settings.makeConfiguration(sourceRect: pending))
@@ -107,6 +109,12 @@ public final class RegionCapture {
             guard lifecycle.commit(token, stream: active) else {
                 throw RegionMirrorError.notRunning
             }
+            // Logs the start line and starts the frame-flow watchdog.
+            output.captureStarted(
+                CaptureStartInfo(
+                    displayID: sourceDisplayID, sourceRect: appliedSourceRect,
+                    width: settings.width, height: settings.height,
+                    framesPerSecond: settings.framesPerSecond))
         } catch {
             // Precedence: a stop() at any point before this start resolves wins
             // and throws `.notRunning`, even if an await also failed. Otherwise
