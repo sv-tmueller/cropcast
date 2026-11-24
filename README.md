@@ -61,6 +61,11 @@ window to the front.
   is the Lock Frame item in the menu bar menu: the two always show the same
   state, also while the Settings window is open. The choice is saved
   (`CropCast.lockFrame`) and survives a relaunch.
+- **Frame rate** (30 fps by default): 30 or 60 fps for the capture. 30 fps
+  lowers the GPU load while sharing (WindowServer does the capturing and the
+  compositing of the extra display). A change applies from the next Start
+  Sharing; a session that is already running keeps its rate. The choice is
+  saved (`CropCast.captureFramesPerSecond`) and survives a relaunch.
 
 The Settings window is one of CropCast's own windows, so it is excluded from
 capture like CropCast's other windows.
@@ -370,5 +375,11 @@ login registers the running bundle's path.
 - [ ] Quit and reopen CropCast while locked: Lock Frame is still checked, the
       Settings switch is on and the frame is still click-through. After
       `defaults delete` as above, a relaunch starts unlocked.
+- [ ] Frame rate shows 30 fps on first use (`defaults delete
+      com.github.sv-tmueller.cropcast CropCast.captureFramesPerSecond` resets
+      it) with the caption "A change applies from the next Start Sharing."
+      Start Sharing captures at 30 fps. Choosing 60 fps while sharing leaves
+      the running session at 30 fps; after Stop and Start Sharing it captures
+      at 60 fps. Quit and reopen CropCast: the picker still shows 60 fps.
 - [ ] Quit CropCast from the app menu while sharing tears the session down:
       `system_profiler SPDisplaysDataType | grep -c CropCast` prints 0.
