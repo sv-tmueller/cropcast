@@ -40,7 +40,10 @@ struct SharingDependencies {
             alerts: AlertPresenter(),
             preflightScreenCapture: { CGPreflightScreenCaptureAccess() },
             makeCapture: { id in
-                let capture = RegionCapture(sourceDisplayID: id)
+                // Read per session: a change applies from the next Start Sharing.
+                let settings = CaptureSettings(
+                    framesPerSecond: CaptureFrameRateSetting.load(from: .standard))
+                let capture = RegionCapture(sourceDisplayID: id, settings: settings)
                 // Logging only; reacting to a stream that stopped by itself is batch 3.
                 capture.onStop = { error in
                     SharingController.logger.error(
