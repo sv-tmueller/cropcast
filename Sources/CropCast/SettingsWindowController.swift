@@ -10,6 +10,8 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var loginRow: LoginItemRow
     /// Mirrors the lock owned by `SharingController`; only `frameLockDidChange` writes it.
     @Published private(set) var isFrameLocked: Bool
+    /// Applies from the next Start Sharing; a running session keeps its rate.
+    @Published private(set) var framesPerSecond: Int
     /// Asks the owner of the lock to flip it. The toggle updates when the owner reports back.
     var onSetFrameLock: ((Bool) -> Void)?
     /// Called after the Dock policy changed, so the window can re-front itself.
@@ -29,6 +31,7 @@ final class SettingsModel: ObservableObject {
         self.loginItem = loginItem
         self.isFrameLocked = isFrameLocked
         showInDock = DockSetting.load(from: defaults)
+        framesPerSecond = CaptureFrameRateSetting.load(from: defaults)
         loginRow = LoginItemRow.make(status: loginItem.status, isAppBundle: loginItem.isAppBundle, error: nil)
     }
 
@@ -47,6 +50,11 @@ final class SettingsModel: ObservableObject {
         showInDock = isShown
         DockIcon.apply(isShown: isShown)
         dockDidChange?()
+    }
+
+    func setFramesPerSecond(_ value: Int) {
+        CaptureFrameRateSetting.save(value, to: defaults)
+        framesPerSecond = CaptureFrameRateSetting.load(from: defaults)
     }
 
     /// Forward only: the lock is saved and applied by `SharingController`.
@@ -125,6 +133,19 @@ private struct SettingsView: View {
                 Toggle(
                     "Lock frame",
                     isOn: Binding(get: { model.isFrameLocked }, set: { model.setFrameLocked($0) }))
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(
+                        "Frame rate",
+                        selection: Binding(
+                            get: { model.framesPerSecond }, set: { model.setFramesPerSecond($0) })
+                    ) {
+                        ForEach(CaptureFrameRateSetting.allowedValues, id: \.self) { value in
+                            Text("\(value) fps").tag(value)
+                        }
+                    }
+                    Text("A change applies from the next Start Sharing.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
