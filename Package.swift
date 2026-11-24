@@ -27,5 +27,9 @@ let package = Package(
             name: "CropCastCoreTests",
             dependencies: ["CropCastCore"]
         ),
+        .testTarget(
+            name: "CropCastAppTests",
+            dependencies: ["CropCast"]
+        ),
     ]
 )

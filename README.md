@@ -41,7 +41,8 @@ window to the front.
 
 - **Show in Dock** (on by default): shows or hides the Dock icon at once, no
   relaunch needed. The menu bar icon stays either way. With the Dock icon
-  shown, the app menu holds Settings… and Quit CropCast.
+  shown, the app menu holds Settings… and Quit CropCast, and the File menu
+  holds Close Window (Command-W, closes the Settings window).
 - **Launch at login**: starts CropCast when you log in. It uses the macOS login
   item of the running app, so it works from any `CropCast.app` and registers
   that copy's path: use the one in `/Applications` (`make install`), not
@@ -304,7 +305,8 @@ the stale grant by hand and grant it again:
 - [ ] `open build/CropCast.app` (first run: `defaults delete
       com.github.sv-tmueller.cropcast CropCast.showInDock`): icons appear in
       the menu bar and the Dock, and no app window opens. The app menu holds
-      Settings… (Command-comma) and Quit CropCast (Command-Q).
+      Settings… (Command-comma) and Quit CropCast (Command-Q); the File menu
+      holds Close Window (Command-W).
 - [ ] After `make install`, Finder shows the CropCast icon (not the generic app
       icon) for `/Applications/CropCast.app`; if stale, `touch` the app and
       `killall Finder`.
@@ -346,7 +348,15 @@ login registers the running bundle's path.
       front, and the menu bar menu still works. After a relaunch there is
       still no Dock icon, and Settings… still opens the window in front.
 - [ ] Show in Dock on again: the Dock icon appears at once, and the app menu
-      (Settings…, Quit CropCast) shows once CropCast is active.
+      (Settings…, Quit CropCast) and the File menu (Close Window) show once
+      CropCast is active.
+- [ ] Command-W with Settings key closes the Settings window, with Show in
+      Dock on and with it off. Settings… then opens the same window again with
+      its switches unchanged.
+- [ ] During a share, Command-W in Settings closes only the Settings window:
+      the frame, the mirror and the session keep running.
+- [ ] With Show in Dock on and CropCast active, File > Close Window is enabled
+      while Settings is key and disabled when no closable window is key.
 - [ ] Launch at login is enabled and off on first use, with no note. Turning
       it on keeps it on, and System Settings > General > Login Items lists
       CropCast; turning it off removes the entry. A change made in System

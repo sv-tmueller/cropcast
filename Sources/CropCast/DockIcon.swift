@@ -1,9 +1,10 @@
 import AppKit
 import CropCastCore
 
-/// Applies the "Show in Dock" setting and owns the minimal app menu. The app
-/// menu only shows while CropCast has a Dock icon and is active, but it is
-/// installed in both modes so Command-comma and Command-Q work either way.
+/// Applies the "Show in Dock" setting and owns the minimal main menu. The menu
+/// only shows while CropCast has a Dock icon and is active, but it is
+/// installed in both modes so Command-comma, Command-W and Command-Q work
+/// either way.
 @MainActor
 final class DockIcon: NSObject {
     var onOpenSettings: (() -> Void)?
@@ -16,10 +17,15 @@ final class DockIcon: NSObject {
         }
     }
 
-    /// One app menu: Settings… (Command-comma), a separator, Quit CropCast
-    /// (Command-Q). Quit goes through `NSApp.terminate(_:)` so the delegate's
+    /// An app menu (Settings… on Command-comma, a separator, Quit CropCast on
+    /// Command-Q) and a File menu (Close Window on Command-W). Quit goes through `NSApp.terminate(_:)` so the delegate's
     /// teardown in `applicationShouldTerminate` still runs.
     func installMainMenu() {
+        NSApp.mainMenu = makeMainMenu(quitTarget: NSApp)
+    }
+
+    /// Builds the main menu without installing it, so a test can inspect it.
+    func makeMainMenu(quitTarget: AnyObject?) -> NSMenu {
         let settings = NSMenuItem(
             title: "Settings…", action: #selector(openSettings),
             keyEquivalent: MenuAction.openSettings.keyEquivalent)
@@ -27,18 +33,29 @@ final class DockIcon: NSObject {
         let quit = NSMenuItem(
             title: "Quit CropCast", action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: MenuAction.quit.keyEquivalent)
-        quit.target = NSApp
+        quit.target = quitTarget
 
         let appMenu = NSMenu()
         appMenu.addItem(settings)
         appMenu.addItem(.separator())
         appMenu.addItem(quit)
 
+        // No target: the action travels the responder chain to the key window.
+        // AppKit disables the item when no closable window is key.
+        let close = NSMenuItem(
+            title: "Close Window", action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "w")
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(close)
+
         let appItem = NSMenuItem()
         appItem.submenu = appMenu
+        let fileItem = NSMenuItem()
+        fileItem.submenu = fileMenu
         let mainMenu = NSMenu()
         mainMenu.addItem(appItem)
-        NSApp.mainMenu = mainMenu
+        mainMenu.addItem(fileItem)
+        return mainMenu
     }
 
     @objc private func openSettings() {
